@@ -6,6 +6,12 @@ from .capabilities import (
     CapabilityRegistry,
     QualificationReceipt,
 )
+from .artifact import (
+    RuntimeArtifactClaim,
+    RuntimeArtifactResult,
+    apply_runtime_artifact_topology,
+    extract_runtime_artifact_claims,
+)
 from .case import RepairCase
 from .hostile import HostileReviewRequest, HostileReviewResult, ReviewOutcome
 from .portfolio import RepositoryObservation, bootstrap_portfolio
@@ -75,6 +81,8 @@ __all__ = [
     "RepairEvent",
     "RepositoryObservation",
     "ReviewOutcome",
+    "RuntimeArtifactClaim",
+    "RuntimeArtifactResult",
     "RevisionResolution",
     "RuntimeBindingResult",
     "RuntimeSourceClaim",
@@ -86,9 +94,11 @@ __all__ = [
     "TraceContext",
     "TransitionError",
     "apply_otel_service_topology",
+    "apply_runtime_artifact_topology",
     "bind_runtime_sources",
     "bootstrap_portfolio",
     "extract_otlp_json_spans",
+    "extract_runtime_artifact_claims",
     "extract_runtime_source_claims",
     "github_repository_id_from_url",
     "repair_event_to_otel_event",

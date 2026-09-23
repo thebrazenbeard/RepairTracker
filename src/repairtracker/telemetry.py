@@ -78,6 +78,11 @@ class OTelSpanObservation:
     deployment_environment: str | None = None
     vcs_repository_url: str | None = None
     vcs_revision: str | None = None
+    container_id: str | None = None
+    container_image_id: str | None = None
+    container_image_name: str | None = None
+    container_image_repo_digests: tuple[str, ...] = ()
+    oci_manifest_digest: str | None = None
 
     def __post_init__(self) -> None:
         if not _TRACE_ID.fullmatch(self.trace_id) or set(self.trace_id) == {"0"}:
@@ -106,6 +111,11 @@ def _otel_value(value: Any) -> Any:
     for key in ("stringValue", "boolValue", "intValue", "doubleValue"):
         if key in value:
             return value[key]
+    array_value = value.get("arrayValue")
+    if isinstance(array_value, Mapping):
+        values = array_value.get("values", [])
+        if isinstance(values, list):
+            return [_otel_value(item) for item in values]
     return None
 
 
@@ -156,6 +166,13 @@ def extract_otlp_json_spans(
         deployment_environment = resource_attrs.get("deployment.environment.name")
         vcs_repository_url = resource_attrs.get("vcs.repository.url.full")
         vcs_revision = resource_attrs.get("vcs.ref.head.revision")
+        container_id = resource_attrs.get("container.id")
+        container_image_id = resource_attrs.get("container.image.id")
+        container_image_name = resource_attrs.get("container.image.name")
+        container_image_repo_digests = resource_attrs.get(
+            "container.image.repo_digests"
+        )
+        oci_manifest_digest = resource_attrs.get("oci.manifest.digest")
         if not isinstance(service_name, str) or not service_name.strip():
             warnings.append(
                 f"resourceSpans[{resource_index}] missing service.name; spans skipped"
@@ -175,6 +192,18 @@ def extract_otlp_json_spans(
         deployment_environment = optional_text(deployment_environment)
         vcs_repository_url = optional_text(vcs_repository_url)
         vcs_revision = optional_text(vcs_revision)
+        container_id = optional_text(container_id)
+        container_image_id = optional_text(container_image_id)
+        container_image_name = optional_text(container_image_name)
+        oci_manifest_digest = optional_text(oci_manifest_digest)
+        if isinstance(container_image_repo_digests, list):
+            repo_digests = tuple(
+                value.strip()
+                for value in container_image_repo_digests
+                if isinstance(value, str) and value.strip()
+            )
+        else:
+            repo_digests = ()
 
         scope_spans = resource_group.get("scopeSpans", [])
         if not isinstance(scope_spans, list):
@@ -221,6 +250,11 @@ def extract_otlp_json_spans(
                             deployment_environment=deployment_environment,
                             vcs_repository_url=vcs_repository_url,
                             vcs_revision=vcs_revision,
+                            container_id=container_id,
+                            container_image_id=container_image_id,
+                            container_image_name=container_image_name,
+                            container_image_repo_digests=repo_digests,
+                            oci_manifest_digest=oci_manifest_digest,
                         )
                     )
                 except ValueError as exc:
