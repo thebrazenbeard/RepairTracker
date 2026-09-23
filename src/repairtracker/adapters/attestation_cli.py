@@ -70,14 +70,19 @@ class GitHubCLIAttestationVerifier:
         bundle_from_oci: bool = False,
     ) -> tuple[AttestationVerificationReceipt, ...]:
         artifact_name = artifact_name.strip()
+        last_segment = artifact_name.rsplit("/", 1)[-1]
         if (
             not artifact_name
             or artifact_name.startswith("oci://")
             or "@" in artifact_name
+            or "?" in artifact_name
+            or "#" in artifact_name
+            or ":" in last_segment
             or any(ch.isspace() for ch in artifact_name)
         ):
             raise ValueError(
-                "artifact_name must be an OCI image name without digest prefix"
+                "artifact_name must be an immutable-target OCI image name "
+                "without scheme, tag, or digest"
             )
         if not _SHA256.fullmatch(sha256_digest):
             raise ValueError("sha256_digest must be 64 hex characters")

@@ -202,21 +202,30 @@ def parse_verified_slsa_provenance(
             repository = workflow.get("repository")
             if isinstance(repository, str):
                 parsed = urlparse(repository)
-                if (
+                path = parsed.path.strip("/")
+                if path.endswith(".git"):
+                    path = path[:-4]
+                canonical = (
                     parsed.scheme.lower() == "https"
                     and (parsed.hostname or "").lower() == "github.com"
-                ):
-                    path = parsed.path.strip("/")
-                    if path.endswith(".git"):
-                        path = path[:-4]
-                    if (
-                        _REPOSITORY_ID.fullmatch(path)
-                        and path.lower() != source_repository_id.lower()
-                    ):
-                        raise ValueError(
-                            "workflow repository disagrees with verified source "
-                            "repository"
-                        )
+                    and parsed.port is None
+                    and parsed.username is None
+                    and parsed.password is None
+                    and not parsed.query
+                    and not parsed.fragment
+                    and not parsed.params
+                    and _REPOSITORY_ID.fullmatch(path)
+                )
+                if not canonical:
+                    raise ValueError(
+                        "workflow repository metadata is not a canonical GitHub "
+                        "repository URL"
+                    )
+                if path.lower() != source_repository_id.lower():
+                    raise ValueError(
+                        "workflow repository disagrees with verified source "
+                        "repository"
+                    )
 
     run_details = predicate.get("runDetails")
     builder_id = None
@@ -351,6 +360,10 @@ def bind_verified_artifact_provenance(
                     "CRYPTO_VERIFIED_ATTESTATION_SOURCE_BINDING"
                 ),
                 "signer_workflow_enforced": receipt.signer_policy is not None,
+                "build_platform_integrity": "NOT_ESTABLISHED",
+                "predicate_trust_ceiling": (
+                    "SIGNED_BUT_WORKFLOW_CONTEXT_CAN_INFLUENCE_PREDICATE"
+                ),
             },
         )
     )

@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 
+from .adapters.attestation_cli import GitHubCLIAttestationVerifier
 from .adapters.github import GitHubReadClient
 from .discovery import discover_repository
 from .hostile import HostileReviewRequest
@@ -76,6 +77,18 @@ def _parser() -> argparse.ArgumentParser:
     github_attestations.add_argument("--predicate-type", default="provenance")
     github_attestations.add_argument("--max-results", type=int, default=100)
     github_attestations.add_argument("--token-env", default="GITHUB_TOKEN")
+
+    verify_attestation = sub.add_parser(
+        "verify-oci-attestation",
+        help="cryptographically verify SLSA provenance for a digest-pinned OCI image",
+    )
+    verify_attestation.add_argument("artifact_name")
+    verify_attestation.add_argument("sha256_digest")
+    verify_attestation.add_argument("repository")
+    verify_attestation.add_argument("source_revision")
+    verify_attestation.add_argument("--signer-workflow")
+    verify_attestation.add_argument("--deny-self-hosted-runners", action="store_true")
+    verify_attestation.add_argument("--bundle-from-oci", action="store_true")
 
     hostile = sub.add_parser(
         "hostile-template", help="emit hostile-review attack prompts"
@@ -215,6 +228,46 @@ def main(argv: list[str] | None = None) -> int:
                         for item in result.references
                     ],
                     "warnings": list(result.warnings),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command == "verify-oci-attestation":
+        verifier = GitHubCLIAttestationVerifier()
+        receipts = verifier.verify_oci(
+            artifact_name=args.artifact_name,
+            sha256_digest=args.sha256_digest,
+            repository_id=args.repository,
+            source_revision=args.source_revision,
+            signer_workflow=args.signer_workflow,
+            deny_self_hosted_runners=args.deny_self_hosted_runners,
+            bundle_from_oci=args.bundle_from_oci,
+        )
+        print(
+            json.dumps(
+                {
+                    "schema": "REPAIRTRACKER_ATTESTATION_VERIFICATION_V0",
+                    "cryptographically_verified": True,
+                    "receipts": [
+                        {
+                            "verifier": item.verifier,
+                            "verified_at": item.verified_at,
+                            "repository_id": item.repository_id,
+                            "subject_algorithm": item.subject_algorithm,
+                            "subject_digest": item.subject_digest,
+                            "predicate_type": item.predicate_type,
+                            "source_repository_id": item.source_repository_id,
+                            "source_revision": item.source_revision,
+                            "verification_locator": item.verification_locator,
+                            "signer_policy": item.signer_policy,
+                            "witness_timestamps": list(item.witness_timestamps),
+                            "statement_digest": item.statement_digest,
+                        }
+                        for item in receipts
+                    ],
                 },
                 indent=2,
                 sort_keys=True,

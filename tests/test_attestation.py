@@ -157,6 +157,10 @@ class AttestationTests(unittest.TestCase):
             "CRYPTO_VERIFIED_ATTESTATION_SOURCE_BINDING",
         )
         self.assertTrue(built[0].attributes["signer_workflow_enforced"])
+        self.assertEqual(
+            built[0].attributes["build_platform_integrity"],
+            "NOT_ESTABLISHED",
+        )
 
     def test_digest_mismatch_fails_before_provenance_binding(self):
         repo = RepositoryObservation(
@@ -215,6 +219,26 @@ class AttestationTests(unittest.TestCase):
         self.assertIn("--source-digest", args)
         self.assertIn("--signer-workflow", args)
         self.assertIn("--deny-self-hosted-runners", args)
+
+    def test_workflow_repository_disagreement_fails_closed(self):
+        bad_statement = statement()
+        bad_statement["predicate"]["buildDefinition"]["externalParameters"][
+            "workflow"
+        ]["repository"] = "https://github.com/acme/other"
+        with self.assertRaises(ValueError):
+            parse_verified_slsa_provenance(receipt(statement=bad_statement))
+
+    def test_cli_verifier_rejects_mutable_oci_tag(self):
+        verifier = GitHubCLIAttestationVerifier(
+            runner=lambda *args, **kwargs: None
+        )
+        with self.assertRaises(ValueError):
+            verifier.verify_oci(
+                artifact_name="ghcr.io/acme/api:latest",
+                sha256_digest=ARTIFACT_SHA,
+                repository_id="acme/app",
+                source_revision=SOURCE_SHA,
+            )
 
     def test_cli_verifier_failure_never_becomes_receipt(self):
         def failing(args, *, timeout):
