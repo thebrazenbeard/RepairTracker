@@ -50,3 +50,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: repairtracker github-signals ${{ github.repository }} --max-items-per-kind 50 > repairtracker-github-signals.json
+      - name: Live exact GitHub revision resolution
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import os
+          from repairtracker.adapters.github import GitHubReadClient
+
+          result = GitHubReadClient(token=os.environ["GITHUB_TOKEN"]).resolve_revision(
+              os.environ["GITHUB_REPOSITORY"],
+              os.environ["GITHUB_SHA"],
+          )
+          assert result.resolved_revision == os.environ["GITHUB_SHA"].lower()
