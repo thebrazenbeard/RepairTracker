@@ -67,7 +67,11 @@ def github_repository_id_from_url(url: str) -> str | None:
         return None
     if (parsed.hostname or "").lower() != "github.com":
         return None
-    if parsed.port is not None or parsed.username is not None or parsed.password is not None:
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    if port is not None or parsed.username is not None or parsed.password is not None:
         return None
     if parsed.query or parsed.fragment or parsed.params:
         return None
@@ -184,18 +188,28 @@ def bind_runtime_sources(
     bound = 0
 
     for claim in claims:
-        repository_node_id = f"repo:{claim.repository_id}"
-        if repository_node_id not in topology.nodes:
+        repository_matches = [
+            node_id
+            for node_id, node in topology.nodes.items()
+            if (
+                node.kind is NodeKind.REPOSITORY
+                and node_id.removeprefix("repo:").lower()
+                == claim.repository_id.lower()
+            )
+        ]
+        if len(repository_matches) != 1:
             warning_list.append(
-                f"runtime source claim references repository outside observed "
-                f"portfolio: {claim.repository_id}"
+                f"runtime source claim repository match count is "
+                f"{len(repository_matches)} for {claim.repository_id}; binding skipped"
             )
             continue
 
+        repository_node_id = repository_matches[0]
+        canonical_repository_id = repository_node_id.removeprefix("repo:")
         resolution = resolver.resolve_revision(
-            claim.repository_id, claim.claimed_revision
+            canonical_repository_id, claim.claimed_revision
         )
-        if resolution.repository_id.lower() != claim.repository_id.lower():
+        if resolution.repository_id.lower() != canonical_repository_id.lower():
             raise ValueError("revision resolver returned a different repository")
         if not resolution.resolved_revision.lower().startswith(
             claim.claimed_revision.lower()
@@ -205,7 +219,7 @@ def bind_runtime_sources(
             )
 
         exact_revision = resolution.resolved_revision.lower()
-        source_node_id = f"source:{claim.repository_id}@{exact_revision}"
+        source_node_id = f"source:{canonical_repository_id}@{exact_revision}"
 
         topology.add_node(
             TopologyNode(
@@ -220,9 +234,9 @@ def bind_runtime_sources(
             TopologyNode(
                 node_id=source_node_id,
                 kind=NodeKind.SOURCE_REVISION,
-                label=f"{claim.repository_id}@{exact_revision}",
+                label=f"{canonical_repository_id}@{exact_revision}",
                 attributes={
-                    "repository_id": claim.repository_id,
+                    "repository_id": canonical_repository_id,
                     "revision": exact_revision,
                 },
                 evidence=(claim.evidence,),
@@ -262,7 +276,7 @@ def bind_runtime_sources(
             locator=resolution.locator,
             subject_ref=exact_revision,
             observed_at=resolution.observed_at,
-            evidence_class=EvidenceClass.VERIFIED,
+            evidence_class=EvidenceClass.RETRIEVED_EVIDENCE,
             payload_digest=canonical_digest(
                 {
                     "repository_id": resolution.repository_id,
@@ -287,7 +301,7 @@ def bind_runtime_sources(
                 confidence=1.0,
                 evidence=(resolution_evidence,),
                 verification_ref=(
-                    f"github-commit://{claim.repository_id}@{exact_revision}"
+                    f"github-commit://{canonical_repository_id}@{exact_revision}"
                 ),
                 attributes={
                     "verification_ceiling": "SOURCE_REVISION_EXISTS_IN_REPOSITORY"

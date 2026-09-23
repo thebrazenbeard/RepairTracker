@@ -97,11 +97,36 @@ class RuntimeBindingTests(unittest.TestCase):
             "SOURCE_REVISION_EXISTS_IN_REPOSITORY",
         )
 
+    def test_repository_url_casing_resolves_to_observed_portfolio_identity(self):
+        repo = RepositoryObservation(
+            repository_id="Acme/App",
+            default_branch="main",
+            revision="f" * 40,
+            observed_at="2026-09-23T12:00:00+00:00",
+            source_system="fixture",
+            source_locator="fixture://Acme/App",
+            files={},
+        )
+        topology = bootstrap_portfolio((repo,), portfolio_id="acme")
+        result = bind_runtime_sources(
+            topology,
+            (span(repo="https://github.com/acme/app"),),
+            FakeResolver(),
+        )
+        self.assertEqual(result.bound_claims, 1)
+        self.assertTrue(
+            any(
+                edge.target_id == "repo:Acme/App"
+                for edge in topology.edges.values()
+                if edge.relation is RelationType.BELONGS_TO
+            )
+        )
+
     def test_repository_outside_portfolio_is_not_silently_added(self):
         topology = bootstrap_portfolio((), portfolio_id="empty")
         result = bind_runtime_sources(topology, (span(),), FakeResolver())
         self.assertEqual(result.bound_claims, 0)
-        self.assertTrue(any("outside observed portfolio" in w for w in result.warnings))
+        self.assertTrue(any("match count is 0" in w for w in result.warnings))
 
 
 if __name__ == "__main__":
