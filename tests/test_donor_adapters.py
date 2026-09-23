@@ -4,7 +4,11 @@ from repairtracker.adapters.donors import (
     advertisements_for_repository,
     register_detected_donors,
 )
-from repairtracker.capabilities import Capability, CapabilityRegistry
+from repairtracker.capabilities import (
+    Capability,
+    CapabilityRegistry,
+    QualificationReceipt,
+)
 from repairtracker.portfolio import RepositoryObservation
 
 
@@ -21,7 +25,7 @@ def donor(repo):
 
 
 class DonorAdapterTests(unittest.TestCase):
-    def test_donor_detection_does_not_auto_admit(self):
+    def test_donor_detection_does_not_auto_qualify_or_admit(self):
         observation = donor("thebrazenbeard/roots")
         ads = advertisements_for_repository(observation)
         self.assertEqual(len(ads), 1)
@@ -31,10 +35,19 @@ class DonorAdapterTests(unittest.TestCase):
 
         registry = CapabilityRegistry()
         registry.register(ads[0])
+        registry.admit("thebrazenbeard/roots")
         with self.assertRaises(LookupError):
             registry.select(Capability.PROVENANCE)
 
-        registry.admit("thebrazenbeard/roots")
+        registry.qualify(
+            QualificationReceipt(
+                provider_id="thebrazenbeard/roots",
+                provider_version="a" * 40,
+                capability=Capability.PROVENANCE,
+                method="fixture-contract-test",
+                evidence_ref="test://roots-contract",
+            )
+        )
         self.assertEqual(
             registry.select(Capability.PROVENANCE).provider_id,
             "thebrazenbeard/roots",
@@ -48,7 +61,7 @@ class DonorAdapterTests(unittest.TestCase):
         self.assertEqual(ads[0].capability, Capability.CONTROL_PLANE)
         self.assertEqual(ads[0].effect_ceiling, "OBSERVE_ONLY")
 
-    def test_bulk_detection_registers_without_admission(self):
+    def test_bulk_detection_registers_without_qualification_or_admission(self):
         registry = CapabilityRegistry()
         ads = register_detected_donors(
             (donor("thebrazenbeard/roots"), donor("thebrazenbeard/rezon")),

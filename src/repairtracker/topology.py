@@ -11,6 +11,7 @@ class NodeKind(StrEnum):
     PORTFOLIO = "PORTFOLIO"
     REPOSITORY = "REPOSITORY"
     PACKAGE = "PACKAGE"
+    SERVICE = "SERVICE"
     WORKFLOW = "WORKFLOW"
     TEST_SURFACE = "TEST_SURFACE"
     BUILD_SURFACE = "BUILD_SURFACE"
@@ -24,6 +25,7 @@ class RelationType(StrEnum):
     PROVIDES = "PROVIDES"
     DECLARES_DEPENDENCY = "DECLARES_DEPENDENCY"
     DEPENDS_ON = "DEPENDS_ON"
+    CALLS = "CALLS"
     TESTS = "TESTS"
     BUILDS = "BUILDS"
     DEPLOYS = "DEPLOYS"
@@ -87,6 +89,7 @@ class TopologyEdge:
     confidence: float
     evidence: tuple[EvidencePointer, ...] = ()
     inference_rule: str | None = None
+    verification_ref: str | None = None
     attributes: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -99,6 +102,18 @@ class TopologyEdge:
             RelationDisposition.VERIFIED,
         } and not self.evidence:
             raise ValueError(f"{self.disposition} topology edges require evidence")
+        if (
+            self.disposition is RelationDisposition.VERIFIED
+            and not self.verification_ref
+        ):
+            raise ValueError("verified topology edges require verification_ref")
+        if (
+            self.disposition is not RelationDisposition.VERIFIED
+            and self.verification_ref is not None
+        ):
+            raise ValueError(
+                "verification_ref is reserved for VERIFIED topology edges"
+            )
 
 
 def topology_edge_id(

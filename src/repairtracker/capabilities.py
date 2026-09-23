@@ -35,17 +35,36 @@ class CapabilityAdvertisement:
     replay_semantics: str = "UNSPECIFIED"
 
 
-class CapabilityRegistry:
-    """Discovery and admission are deliberately separate.
+@dataclass(frozen=True, slots=True)
+class QualificationReceipt:
+    provider_id: str
+    provider_version: str
+    capability: Capability
+    method: str
+    evidence_ref: str
 
-    One provider may advertise several capabilities. Admission applies to the
-    provider identity, not just one advertisement, but does not grant any
-    authority beyond each advertisement's effect ceiling.
+    def __post_init__(self) -> None:
+        if not self.method.strip():
+            raise ValueError("qualification method is required")
+        if not self.evidence_ref.strip():
+            raise ValueError("qualification evidence_ref is required")
+
+
+class CapabilityRegistry:
+    """Discovery, qualification, and admission are separate states.
+
+    Native providers are source-local and can become eligible after admission.
+    External providers must be both qualified for the exact advertised
+    version/capability and admitted. Neither state expands the advertisement's
+    effect ceiling.
     """
 
     def __init__(self) -> None:
         self._providers: dict[
             tuple[str, Capability], CapabilityAdvertisement
+        ] = {}
+        self._qualified: dict[
+            tuple[str, Capability], QualificationReceipt
         ] = {}
         self._admitted: set[str] = set()
 
@@ -57,6 +76,31 @@ class CapabilityRegistry:
                 f"{advertisement.provider_id}/{advertisement.capability}"
             )
         self._providers[key] = advertisement
+
+    def qualify(self, receipt: QualificationReceipt) -> None:
+        key = (receipt.provider_id, receipt.capability)
+        advertisement = self._providers.get(key)
+        if advertisement is None:
+            raise KeyError(key)
+        if advertisement.provider_kind is not ProviderKind.EXTERNAL:
+            raise ValueError("native providers do not require external qualification")
+        if receipt.provider_version != advertisement.provider_version:
+            raise ValueError(
+                "qualification version mismatch: "
+                f"advertised={advertisement.provider_version}, "
+                f"qualified={receipt.provider_version}"
+            )
+        self._qualified[key] = receipt
+
+    def revoke_qualification(
+        self, provider_id: str, capability: Capability
+    ) -> None:
+        self._qualified.pop((provider_id, capability), None)
+
+    def qualification(
+        self, provider_id: str, capability: Capability
+    ) -> QualificationReceipt | None:
+        return self._qualified.get((provider_id, capability))
 
     def admit(self, provider_id: str) -> None:
         if not any(
@@ -77,16 +121,24 @@ class CapabilityRegistry:
         )
 
     def eligible(self, capability: Capability) -> tuple[CapabilityAdvertisement, ...]:
-        return tuple(
-            provider
-            for provider in self.discovered(capability)
-            if provider.provider_id in self._admitted
-        )
+        eligible: list[CapabilityAdvertisement] = []
+        for provider in self.discovered(capability):
+            if provider.provider_id not in self._admitted:
+                continue
+            if (
+                provider.provider_kind is ProviderKind.EXTERNAL
+                and (provider.provider_id, capability) not in self._qualified
+            ):
+                continue
+            eligible.append(provider)
+        return tuple(eligible)
 
     def select(self, capability: Capability) -> CapabilityAdvertisement:
         eligible = self.eligible(capability)
         if not eligible:
-            raise LookupError(f"no admitted provider for capability {capability}")
+            raise LookupError(
+                f"no qualified and admitted provider for capability {capability}"
+            )
         return sorted(
             eligible,
             key=lambda item: (
