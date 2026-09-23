@@ -14,7 +14,7 @@ This V0 frontier introduces:
 - manifest-derived package identities and dependency declarations;
 - explicitly inferred cross-repository dependencies;
 - local read-only portfolio bootstrap;
-- GitHub REST read-only repository observation;
+- GitHub REST read-only repository observation and bounded user/org portfolio enumeration;
 - OpenTelemetry-compatible repair event correlation;
 - optional donor capability advertisements.
 
@@ -95,7 +95,9 @@ V0 currently infers `DEPENDS_ON` only when a manifest dependency package has exa
 
 `GitHubReadClient` is a read-only adapter.
 
-For each explicitly selected repository it:
+RepairTracker can either observe explicitly selected repositories or enumerate a bounded GitHub user/organization portfolio. Owner enumeration is paginated at up to 100 repositories per request, filters archived repositories and forks by default, and returns a completeness warning if its configured repository ceiling is reached.
+
+For each selected repository it:
 
 1. reads repository metadata;
 2. resolves the default branch;
@@ -172,7 +174,7 @@ BugOps remains a migration/import source, not a continuing optional authority pr
 
 This frontier does not yet prove:
 
-- exhaustive organization/account repository discovery;
+- exhaustive account-wide discovery beyond the selected GitHub owner or configured repository ceiling;
 - service-call topology from runtime traces;
 - deployment target inference;
 - database/schema topology;

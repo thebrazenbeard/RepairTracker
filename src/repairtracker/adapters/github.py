@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 import json
 import os
@@ -23,6 +23,12 @@ _FULL_NAME = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 class GitHubReadError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class OwnerDiscoveryResult:
+    repositories: tuple[str, ...]
+    warnings: tuple[str, ...] = ()
 
 
 class JSONTransport(Protocol):
@@ -51,8 +57,15 @@ class UrllibGitHubReadTransport:
         self._timeout = timeout
 
     def get_json(self, path: str, query: dict[str, str] | None = None) -> Any:
-        if not path.startswith("/repos/"):
-            raise ValueError("GitHub read transport only permits /repos/ endpoints")
+        allowed = (
+            path.startswith("/repos/")
+            or re.fullmatch(r"/users/[A-Za-z0-9_.-]+/repos", path)
+            or re.fullmatch(r"/orgs/[A-Za-z0-9_.-]+/repos", path)
+        )
+        if not allowed:
+            raise ValueError(
+                "GitHub read transport only permits repository-read endpoints"
+            )
         url = f"{self._base_url}{path}"
         if query:
             url += "?" + urlencode(query)
@@ -88,6 +101,99 @@ class GitHubReadClient:
     @staticmethod
     def token_from_env(name: str = "GITHUB_TOKEN") -> str | None:
         return os.environ.get(name)
+
+    def list_owner_repositories(
+        self,
+        owner: str,
+        owner_kind: str = "user",
+        *,
+        include_archived: bool = False,
+        include_forks: bool = False,
+        max_repositories: int = 200,
+    ) -> OwnerDiscoveryResult:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", owner):
+            raise ValueError(f"invalid GitHub owner name: {owner!r}")
+        if owner_kind not in {"user", "org"}:
+            raise ValueError("owner_kind must be 'user' or 'org'")
+        if max_repositories < 1:
+            raise ValueError("max_repositories must be positive")
+
+        prefix = "users" if owner_kind == "user" else "orgs"
+        path = f"/{prefix}/{quote(owner, safe='')}/repos"
+        repositories: list[str] = []
+        warnings: list[str] = []
+
+        for page in range(1, 101):
+            query = {
+                "per_page": "100",
+                "page": str(page),
+                "sort": "full_name",
+                "direction": "asc",
+            }
+            if owner_kind == "org":
+                query["type"] = "all"
+
+            payload = self.transport.get_json(path, query)
+            if not isinstance(payload, list):
+                raise GitHubReadError(
+                    f"invalid repository-list response for {owner_kind} {owner}"
+                )
+
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                full_name = item.get("full_name")
+                if not isinstance(full_name, str) or not _FULL_NAME.fullmatch(full_name):
+                    continue
+                if item.get("archived") is True and not include_archived:
+                    continue
+                if item.get("fork") is True and not include_forks:
+                    continue
+                repositories.append(full_name)
+                if len(repositories) >= max_repositories:
+                    warnings.append(
+                        "repository discovery limit reached; result may be incomplete"
+                    )
+                    return OwnerDiscoveryResult(
+                        repositories=tuple(repositories),
+                        warnings=tuple(warnings),
+                    )
+
+            if len(payload) < 100:
+                return OwnerDiscoveryResult(
+                    repositories=tuple(repositories),
+                    warnings=tuple(warnings),
+                )
+
+        warnings.append(
+            "repository pagination ceiling reached; result may be incomplete"
+        )
+        return OwnerDiscoveryResult(
+            repositories=tuple(repositories),
+            warnings=tuple(warnings),
+        )
+
+    def observe_owner_portfolio(
+        self,
+        owner: str,
+        owner_kind: str = "user",
+        *,
+        include_archived: bool = False,
+        include_forks: bool = False,
+        max_repositories: int = 200,
+    ) -> tuple[tuple[RepositoryObservation, ...], tuple[str, ...]]:
+        discovery = self.list_owner_repositories(
+            owner,
+            owner_kind,
+            include_archived=include_archived,
+            include_forks=include_forks,
+            max_repositories=max_repositories,
+        )
+        observations = tuple(
+            self.observe_repository(repository)
+            for repository in discovery.repositories
+        )
+        return observations, discovery.warnings
 
     def _repository_default_branch(self, encoded: str, full_name: str) -> str:
         repo = self.transport.get_json(f"/repos/{encoded}")

@@ -34,6 +34,18 @@ def _parser() -> argparse.ArgumentParser:
     portfolio_github.add_argument("--portfolio-id", default="default")
     portfolio_github.add_argument("--token-env", default="GITHUB_TOKEN")
 
+    portfolio_owner = sub.add_parser(
+        "portfolio-github-owner",
+        help="discover and bootstrap a bounded GitHub user/org portfolio (read-only)",
+    )
+    portfolio_owner.add_argument("owner")
+    portfolio_owner.add_argument("--kind", choices=("user", "org"), default="user")
+    portfolio_owner.add_argument("--portfolio-id")
+    portfolio_owner.add_argument("--max-repositories", type=int, default=200)
+    portfolio_owner.add_argument("--include-archived", action="store_true")
+    portfolio_owner.add_argument("--include-forks", action="store_true")
+    portfolio_owner.add_argument("--token-env", default="GITHUB_TOKEN")
+
     hostile = sub.add_parser(
         "hostile-template", help="emit hostile-review attack prompts"
     )
@@ -74,6 +86,24 @@ def main(argv: list[str] | None = None) -> int:
         topology = bootstrap_portfolio(
             observations, portfolio_id=args.portfolio_id
         )
+        print(json.dumps(topology.to_dict(), indent=2, sort_keys=True))
+        return 0
+
+    if args.command == "portfolio-github-owner":
+        token = os.environ.get(args.token_env)
+        client = GitHubReadClient(token=token)
+        observations, warnings = client.observe_owner_portfolio(
+            args.owner,
+            args.kind,
+            include_archived=args.include_archived,
+            include_forks=args.include_forks,
+            max_repositories=args.max_repositories,
+        )
+        topology = bootstrap_portfolio(
+            observations,
+            portfolio_id=args.portfolio_id or args.owner,
+        )
+        topology.warnings.extend(warnings)
         print(json.dumps(topology.to_dict(), indent=2, sort_keys=True))
         return 0
 
