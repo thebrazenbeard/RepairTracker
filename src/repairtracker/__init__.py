@@ -26,6 +26,19 @@ from .deployment import (
 )
 from .hostile import HostileReviewRequest, HostileReviewResult, ReviewOutcome
 from .portfolio import RepositoryObservation, bootstrap_portfolio
+from .promotion import (
+    PolicyAmbiguityError,
+    PromotionDecision,
+    PromotionDisposition,
+    PromotionPersistence,
+    PromotionRule,
+    SignalPromotion,
+    SignalPromotionPolicy,
+    evaluate_signal,
+    github_signal_key,
+    persist_promotion,
+    promote_signal,
+)
 from .storage import AppendReceipt, LedgerIntegrityError, SQLiteEventStore, StaleHeadError
 from .runtime_binding import (
     RevisionResolution,
@@ -87,7 +100,12 @@ __all__ = [
     "OTelExtractionResult",
     "OTelSpanObservation",
     "ObservedArtifactDeploymentRecord",
+    "PolicyAmbiguityError",
     "PortfolioTopology",
+    "PromotionDecision",
+    "PromotionDisposition",
+    "PromotionPersistence",
+    "PromotionRule",
     "RelationDisposition",
     "RelationType",
     "RepairAttemptState",
@@ -101,6 +119,8 @@ __all__ = [
     "RuntimeBindingResult",
     "RuntimeSourceClaim",
     "SLSAProvenanceClaim",
+    "SignalPromotion",
+    "SignalPromotionPolicy",
     "SQLiteEventStore",
     "Severity",
     "StaleHeadError",
@@ -114,10 +134,14 @@ __all__ = [
     "bind_runtime_sources",
     "bind_verified_artifact_provenance",
     "bootstrap_portfolio",
+    "evaluate_signal",
     "extract_otlp_json_spans",
     "extract_runtime_artifact_claims",
     "extract_runtime_source_claims",
     "github_repository_id_from_url",
+    "github_signal_key",
     "parse_verified_slsa_provenance",
+    "persist_promotion",
+    "promote_signal",
     "repair_event_to_otel_event",
 ]

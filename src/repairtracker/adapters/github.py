@@ -48,6 +48,7 @@ class GitHubRepairSignal:
     observed_at: str
     subject_ref: str | None
     payload_digest: str
+    repository_stable_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -360,8 +361,18 @@ class GitHubReadClient:
         if not _FULL_NAME.fullmatch(full_name):
             raise ValueError(f"invalid GitHub repository name: {full_name!r}")
         encoded = "/".join(quote(part, safe="") for part in full_name.split("/"))
+        repository_payload = self.transport.get_json(f"/repos/{encoded}")
+        stable_repository_id = repository_payload.get("id")
+        if not isinstance(stable_repository_id, int):
+            stable_repository_id = None
+
         observed_at = datetime.now(timezone.utc).isoformat()
         warnings: list[str] = []
+        if stable_repository_id is None:
+            warnings.append(
+                "GitHub repository numeric ID unavailable; signal identity "
+                "will fall back to rename-sensitive repository name"
+            )
         signals: list[GitHubRepairSignal] = []
 
         issues, issue_limited = self._list_bounded(
@@ -396,12 +407,15 @@ class GitHubReadClient:
                     subject_ref=None,
                     payload_digest=canonical_digest(
                         {
+                            "repository_id": full_name,
+                            "repository_stable_id": stable_repository_id,
                             "number": number,
                             "title": title,
                             "state": item.get("state"),
                             "updated_at": item.get("updated_at"),
                         }
                     ),
+                    repository_stable_id=stable_repository_id,
                 )
             )
 
@@ -437,6 +451,8 @@ class GitHubReadClient:
                     subject_ref=head_sha if isinstance(head_sha, str) else None,
                     payload_digest=canonical_digest(
                         {
+                            "repository_id": full_name,
+                            "repository_stable_id": stable_repository_id,
                             "number": number,
                             "title": title,
                             "state": item.get("state"),
@@ -444,6 +460,7 @@ class GitHubReadClient:
                             "updated_at": item.get("updated_at"),
                         }
                     ),
+                    repository_stable_id=stable_repository_id,
                 )
             )
 
@@ -508,6 +525,8 @@ class GitHubReadClient:
                     subject_ref=head_sha if isinstance(head_sha, str) else None,
                     payload_digest=canonical_digest(
                         {
+                            "repository_id": full_name,
+                            "repository_stable_id": stable_repository_id,
                             "id": run_id,
                             "name": name,
                             "conclusion": conclusion,
@@ -516,6 +535,7 @@ class GitHubReadClient:
                             "updated_at": item.get("updated_at"),
                         }
                     ),
+                    repository_stable_id=stable_repository_id,
                 )
             )
 

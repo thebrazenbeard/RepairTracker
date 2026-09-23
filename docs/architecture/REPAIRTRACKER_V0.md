@@ -27,7 +27,8 @@ V0 implements these foundations:
 13. portable runtime artifact identity from OpenTelemetry image/manifest digests;
 14. GitHub attestation discovery kept separate from cryptographic verification;
 15. SLSA/in-toto verified artifact-to-source binding through an optional GitHub CLI verifier;
-16. read-only GitHub artifact deployment-record observation keyed by exact artifact digest.
+16. read-only GitHub artifact deployment-record observation keyed by exact artifact digest;
+17. explicit policy-governed GitHub signal promotion with deterministic RepairCase identity and idempotent ledger persistence.
 
 The point is to establish semantics, durable recovery, currentness, and topology evidence before adding repair automation.
 
@@ -161,10 +162,19 @@ A deployment record, including one carrying an attestation ID, is not upgraded t
 
 See `ARTIFACT_ATTESTATION_V0.md`.
 
-## Current frontier after artifact-attestation V0
+## GitHub signal promotion
 
-1. policy-driven promotion of selected GitHub candidate signals into RepairCases;
-2. executable semantic qualification probes for optional donor providers;
+GitHub issue/PR/workflow signals remain evidence until an explicit promotion policy matches exactly one rule.
+
+There are no implicit promotion rules and no inferred severity. Unmatched signals are deferred; overlapping matches fail closed. A deterministic signal identity produces a deterministic RepairCase/opening-event identity, so replay cannot silently create duplicate cases.
+
+Promotion writes an evidence-bound opening event at OBSERVE_ONLY authority. Later changed signal evidence is surfaced without rewriting the opening record or opening a second case.
+
+See `GITHUB_SIGNAL_PROMOTION_V0.md`.
+
+## Current frontier after GitHub-signal promotion V0
+
+1. executable semantic qualification probes for optional donor providers;
 3. independently observed runtime/deployment identity mapping beyond self-reported telemetry and artifact metadata records;
 4. database/schema topology;
 5. normalized BugOps migration tooling over real legacy reports;
