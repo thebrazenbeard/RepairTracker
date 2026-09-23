@@ -63,3 +63,7 @@ jobs:
               os.environ["GITHUB_SHA"],
           )
           assert result.resolved_revision == os.environ["GITHUB_SHA"].lower()
+      - name: Live read-only GitHub attestation index
+        run: repairtracker github-attestations ${{ github.repository }} sha256:0000000000000000000000000000000000000000000000000000000000000000 --max-results 1 --token-env REPAIRTRACKER_NO_TOKEN > repairtracker-github-attestations.json
+      - name: GitHub CLI attestation trust-root capability
+        run: gh attestation trusted-root --verify-only

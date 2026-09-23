@@ -74,3 +74,14 @@ Qualification is bound to the exact advertised provider version and capability. 
 V0 proves source-level mechanisms for read-only GitHub observation, OTLP/JSON parsing, observed service-call topology, and external capability gating.
 
 It does not prove an OTLP collector/exporter, continuous production monitoring, service-to-repository identity binding, automatic RepairCase promotion, or permission to execute donor systems.
+
+
+## Artifact provenance composition
+
+OpenTelemetry may expose a portable container image identity through `container.image.repo_digests` or `oci.manifest.digest`. RepairTracker may bind that observed digest to a service instance but does not infer provenance from the image name, tag, or runtime-specific `container.image.id`.
+
+GitHub attestation REST results are discovery references only.
+
+Cryptographic promotion uses the optional GitHub CLI verifier with SLSA provenance v1, exact repository and source-digest enforcement, and optional signer-workflow/runner policy. The verified statement must bind the same artifact digest and exact source revision before RepairTracker creates a VERIFIED artifact/source edge.
+
+See `../architecture/ARTIFACT_ATTESTATION_V0.md`.

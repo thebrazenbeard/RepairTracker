@@ -23,7 +23,10 @@ V0 implements these foundations:
 9. local and GitHub read-only portfolio observation;
 10. OpenTelemetry-compatible event correlation and OTLP/JSON observed service-call ingestion;
 11. bounded GitHub issue/PR/workflow repair-signal ingestion;
-12. optional donor capability advertisements with exact-version qualification gates.
+12. optional donor capability advertisements with exact-version qualification gates;
+13. portable runtime artifact identity from OpenTelemetry image/manifest digests;
+14. GitHub attestation discovery kept separate from cryptographic verification;
+15. SLSA/in-toto verified artifact-to-source binding through an optional GitHub CLI verifier.
 
 The point is to establish semantics, durable recovery, currentness, and topology evidence before adding repair automation.
 
@@ -129,12 +132,30 @@ The same-context reviewer must identify itself as correlated rather than pretend
 
 A future Rezon provider may strengthen the review but may not silently change RepairTracker state or effect authority.
 
-## Current frontier after portfolio-bootstrap V0
+## Artifact/deployment attestation
 
-1. verified topology promotion policy beyond the current explicit verification-reference guard;
-2. service/repository binding so observed runtime calls can be correlated to source without guessing;
-3. policy-driven promotion of selected GitHub candidate signals into RepairCases;
-4. deployment/environment and database topology;
+The source/runtime binding is extended through immutable artifact identity:
+
+```text
+SERVICE / instance
+  -> RUNS_ARTIFACT / OBSERVED
+ARTIFACT digest
+  -> BUILT_FROM / VERIFIED ATTESTATION
+SOURCE_REVISION
+  -> BELONGS_TO / VERIFIED
+REPOSITORY
+```
+
+GitHub REST attestation discovery is never treated as verification. A VERIFIED artifact/source edge requires a cryptographic verification receipt, exact artifact digest match, exact source revision enforcement, validated SLSA provenance, and GitHub source-revision readback.
+
+See `ARTIFACT_ATTESTATION_V0.md`.
+
+## Current frontier after artifact-attestation V0
+
+1. policy-driven promotion of selected GitHub candidate signals into RepairCases;
+2. executable semantic qualification probes for optional donor providers;
+3. richer deployment/environment topology beyond service-instance edge metadata;
+4. database/schema topology;
 5. normalized BugOps migration tooling over real legacy reports;
 6. repair work units and verification records;
 7. OTLP exporter/collector adapter;
