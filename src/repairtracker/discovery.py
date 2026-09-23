@@ -48,6 +48,10 @@ def _walk(root: Path, max_files: int) -> Iterable[Path]:
     for path in root.rglob("*"):
         if any(part in IGNORED_DIRS for part in path.parts):
             continue
+        # Discovery does not follow symlinked files into potentially unrelated
+        # filesystem subjects.
+        if path.is_symlink():
+            continue
         if not path.is_file():
             continue
         count += 1

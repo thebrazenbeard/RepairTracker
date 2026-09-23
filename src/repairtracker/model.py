@@ -53,7 +53,9 @@ class EffectState(StrEnum):
     OBSERVED_APPLIED = "OBSERVED_APPLIED"
     OBSERVED_NOT_APPLIED = "OBSERVED_NOT_APPLIED"
     OUTCOME_UNKNOWN = "OUTCOME_UNKNOWN"
-    RECONCILED = "RECONCILED"
+    RECONCILED_APPLIED = "RECONCILED_APPLIED"
+    RECONCILED_NOT_APPLIED = "RECONCILED_NOT_APPLIED"
+    RECONCILED_UNRESOLVED = "RECONCILED_UNRESOLVED"
 
 
 INCIDENT_TRANSITIONS: dict[IncidentState, frozenset[IncidentState]] = {
@@ -124,10 +126,16 @@ EFFECT_TRANSITIONS: dict[EffectState, frozenset[EffectState]] = {
         EffectState.OBSERVED_NOT_APPLIED,
         EffectState.OUTCOME_UNKNOWN,
     }),
-    EffectState.OBSERVED_APPLIED: frozenset({EffectState.RECONCILED}),
-    EffectState.OBSERVED_NOT_APPLIED: frozenset({EffectState.RECONCILED}),
-    EffectState.OUTCOME_UNKNOWN: frozenset({EffectState.RECONCILED}),
-    EffectState.RECONCILED: frozenset(),
+    EffectState.OBSERVED_APPLIED: frozenset({EffectState.RECONCILED_APPLIED}),
+    EffectState.OBSERVED_NOT_APPLIED: frozenset({EffectState.RECONCILED_NOT_APPLIED}),
+    EffectState.OUTCOME_UNKNOWN: frozenset({
+        EffectState.RECONCILED_APPLIED,
+        EffectState.RECONCILED_NOT_APPLIED,
+        EffectState.RECONCILED_UNRESOLVED,
+    }),
+    EffectState.RECONCILED_APPLIED: frozenset(),
+    EffectState.RECONCILED_NOT_APPLIED: frozenset(),
+    EffectState.RECONCILED_UNRESOLVED: frozenset(),
 }
 
 
@@ -177,10 +185,11 @@ class RepairEvent:
 
 
 class EventLog:
-    """Append-only, digest-chained RepairEvent collection."""
+    """Append-only, digest-chained RepairEvent collection for exactly one repair."""
 
     def __init__(self, events: Iterable[RepairEvent] = ()) -> None:
         self._events: list[RepairEvent] = []
+        self._repair_id: str | None = None
         for event in events:
             self.append(event)
 
@@ -192,7 +201,16 @@ class EventLog:
     def head_digest(self) -> str | None:
         return self._events[-1].digest if self._events else None
 
+    @property
+    def repair_id(self) -> str | None:
+        return self._repair_id
+
     def append(self, event: RepairEvent) -> None:
+        if self._repair_id is not None and event.repair_id != self._repair_id:
+            raise ValueError(
+                f"cross-repair event rejected: log={self._repair_id}, event={event.repair_id}"
+            )
+
         expected = self.head_digest
         if event.predecessor_digest != expected:
             raise ValueError(
@@ -201,4 +219,7 @@ class EventLog:
             )
         if any(existing.event_id == event.event_id for existing in self._events):
             raise ValueError(f"duplicate event_id: {event.event_id}")
+
         self._events.append(event)
+        if self._repair_id is None:
+            self._repair_id = event.repair_id

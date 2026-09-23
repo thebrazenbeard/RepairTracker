@@ -38,6 +38,28 @@ class DiscoveryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             model.add_discovered_fact(fact)
 
+    def test_system_model_rejects_duplicate_fact_identity(self):
+        model = SystemModel()
+        first = SystemFact(
+            fact_id="same",
+            kind="test_surface",
+            key="tests/a.py",
+            value="test-file",
+            disposition=FactDisposition.OBSERVED_SOURCE,
+            provenance="tests/a.py",
+        )
+        second = SystemFact(
+            fact_id="same",
+            kind="deployment_surface",
+            key="deploy.yml",
+            value="something-else",
+            disposition=FactDisposition.OBSERVED_SOURCE,
+            provenance="deploy.yml",
+        )
+        model.add_discovered_fact(first)
+        with self.assertRaises(ValueError):
+            model.add_discovered_fact(second)
+
 
 if __name__ == "__main__":
     unittest.main()

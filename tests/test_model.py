@@ -32,12 +32,20 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(case.attempt_states["A-1"], RepairAttemptState.BUILDING)
         self.assertEqual(case.effect_states["E-1"], EffectState.OUTCOME_UNKNOWN)
 
+    def test_unknown_effect_reconciliation_preserves_outcome(self):
+        case = RepairCase("R-1", "broken thing", "repo@sha", Severity.SEV_2)
+        case.create_effect("E-1")
+        case.transition_effect("E-1", EffectState.ATTEMPTED)
+        case.transition_effect("E-1", EffectState.OUTCOME_UNKNOWN)
+        case.transition_effect("E-1", EffectState.RECONCILED_NOT_APPLIED)
+        self.assertEqual(case.effect_states["E-1"], EffectState.RECONCILED_NOT_APPLIED)
+
     def test_invalid_transition_fails_closed(self):
         case = RepairCase("R-1", "broken thing", "repo@sha", Severity.SEV_2)
         with self.assertRaises(TransitionError):
             case.transition_incident(IncidentState.CLOSED)
 
-    def test_event_log_is_digest_chained(self):
+    def test_event_log_is_digest_chained_and_repair_bound(self):
         first = RepairEvent(
             event_id="evt-1",
             repair_id="R-1",
@@ -60,9 +68,22 @@ class ModelTests(unittest.TestCase):
         )
         log.append(second)
         self.assertEqual(log.head_digest, second.digest)
+        self.assertEqual(log.repair_id, "R-1")
 
-        bad = RepairEvent(
+        cross_case = RepairEvent(
             event_id="evt-3",
+            repair_id="R-2",
+            event_type="CROSS_CASE",
+            subject_id="repo@sha",
+            evidence_class=EvidenceClass.INFERENCE,
+            actor="test",
+            predecessor_digest=second.digest,
+        )
+        with self.assertRaises(ValueError):
+            log.append(cross_case)
+
+        bad_chain = RepairEvent(
+            event_id="evt-4",
             repair_id="R-1",
             event_type="BAD_CHAIN",
             subject_id="repo@sha",
@@ -71,7 +92,7 @@ class ModelTests(unittest.TestCase):
             predecessor_digest="wrong",
         )
         with self.assertRaises(ValueError):
-            log.append(bad)
+            log.append(bad_chain)
 
 
 if __name__ == "__main__":

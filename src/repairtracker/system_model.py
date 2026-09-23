@@ -43,6 +43,8 @@ class SystemModel:
                 "discovery cannot manufacture AUTHORIZED_CAPABILITY; "
                 "authorization requires a separate admission step"
             )
+        if any(existing.fact_id == fact.fact_id for existing in self.facts):
+            raise ValueError(f"duplicate fact_id: {fact.fact_id}")
         self.facts.append(fact)
 
     @property
