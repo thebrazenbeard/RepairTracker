@@ -10,20 +10,25 @@ The design target is:
 
 ## V0 executable spine
 
-V0 implements five deliberately small foundations:
+V0 implements these foundations:
 
 1. typed incident, repair-attempt, and effect state machines;
 2. append-only digest-chained repair events;
-3. read-only structural portfolio discovery;
+3. read-only structural repository discovery;
 4. a versioned SystemModel whose discovered facts cannot manufacture authorization;
 5. native capability admission and hostile-review artifacts;
-6. a stdlib SQLite repair-event ledger with transactional head checks, monotonic generations, digest readback, and restart verification.
+6. a stdlib SQLite repair-event ledger with transactional head checks, monotonic generations, digest readback, and restart verification;
+7. multi-repository PortfolioTopology with observed/inferred relation separation;
+8. exact-revision currentness evidence where available;
+9. local and GitHub read-only portfolio observation;
+10. OpenTelemetry-compatible event correlation;
+11. optional donor capability advertisements.
 
-The point is to establish semantics and durable recovery before adding automation.
+The point is to establish semantics, durable recovery, currentness, and topology evidence before adding repair automation.
 
 ## Authority firewall
 
-The discovery engine may observe repository and configuration surfaces. It does not execute repository code.
+Discovery may observe repository and configuration surfaces. It does not execute repository code.
 
 The following implications are forbidden:
 
@@ -34,9 +39,10 @@ provider admitted -> protected effect authorized
 test pass -> repair closed
 source mutation -> external effect
 effect attempted -> effect applied
+dependency name match -> verified runtime dependency
 ```
 
-A later provider-specific adapter must preserve these boundaries.
+A provider-specific adapter must preserve these boundaries.
 
 ## Repair graph
 
@@ -48,7 +54,34 @@ V0 keeps three primary transition domains separate:
 - repair-attempt lifecycle;
 - effect-attempt lifecycle.
 
-Later graph objects can add evidence, hypotheses, mitigation, work units, verification, monitoring windows, communications, provenance, and recurrence relations without collapsing these domains.
+Topology is separate again: it is evidence about the system being repaired, not repair lifecycle state.
+
+## Portfolio topology
+
+Portfolio topology is a typed evidence graph.
+
+A dependency declaration and a repository-to-repository dependency are not the same proposition.
+
+For example:
+
+```text
+repo A package.json declares dependency @acme/lib
+    -> OBSERVED
+
+repo B uniquely provides package @acme/lib
+    -> OBSERVED
+
+repo A depends on repo B
+    -> INFERRED using unique-package-provider-match
+```
+
+The inferred edge retains both evidence pointers and a confidence below 1.0.
+
+Ambiguous providers do not produce a repository dependency edge.
+
+Repository currentness is stored independently from topology structure so callers can bind conclusions to exact observed revisions.
+
+See `PORTFOLIO_BOOTSTRAP_V0.md`.
 
 ## Standalone capability rule
 
@@ -66,8 +99,9 @@ An external specialist is progressive enhancement:
 | Communication | Repair events/references | Chat Communication Bus |
 | Debugging | Repair attempt workflow | Masamune |
 | Security review | Native consequence metadata | Project Achilles |
+| Control-plane context | Native source/runtime/effect separation | Vera Control Plane |
 
-Vera Control Plane is an architectural donor/integration surface where present, not a standalone requirement.
+Provider discovery and provider admission are separate. A provider may advertise more than one capability without gaining additional authority.
 
 ## BugOps disposition
 
@@ -82,7 +116,7 @@ BugOps contributes useful historical semantics:
 - effect boundaries;
 - evidence-based closure.
 
-The first migration adapter accepts a normalized BugOps record. It deliberately does not claim arbitrary Markdown can be losslessly interpreted.
+The migration adapter accepts a normalized BugOps record. It deliberately does not claim arbitrary Markdown can be losslessly interpreted.
 
 ## Hostile reviewer
 
@@ -94,17 +128,15 @@ The same-context reviewer must identify itself as correlated rather than pretend
 
 A future Rezon provider may strengthen the review but may not silently change RepairTracker state or effect authority.
 
-## Next frontier
+## Current frontier after portfolio-bootstrap V0
 
-After V0 source qualification:
-
-1. richer RepairCase persistence and serialization;
-2. portfolio-level discovery across multiple repositories;
-3. dependency/topology relation inference with explicit provenance;
-4. GitHub issue/PR/Actions adapters;
-5. normalized BugOps migration tooling;
+1. verified topology promotion rules from runtime/review evidence;
+2. service-call topology from OpenTelemetry traces;
+3. GitHub issue/PR/Actions repair-case ingestion;
+4. deployment/environment and database topology;
+5. normalized BugOps migration tooling over real legacy reports;
 6. repair work units and verification records;
-7. OpenTelemetry correlation envelope;
-8. optional donor-system adapters;
+7. OTLP exporter/collector adapter;
+8. executable optional donor adapters behind capability ceilings;
 9. recurrence detection and monitoring windows;
-10. source/runtime behavioral qualification on a real cloned portfolio.
+10. behavioral qualification on a real cloned multi-repository portfolio.

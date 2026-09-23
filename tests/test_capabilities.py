@@ -8,11 +8,11 @@ from repairtracker.capabilities import (
 )
 
 
-def provider(provider_id: str, kind: ProviderKind) -> CapabilityAdvertisement:
+def provider(provider_id: str, kind: ProviderKind, capability=Capability.PROVENANCE):
     return CapabilityAdvertisement(
         provider_id=provider_id,
         provider_version="1",
-        capability=Capability.PROVENANCE,
+        capability=capability,
         provider_kind=kind,
         supported_operations=("trace",),
         evidence_outputs=("provenance-receipt",),
@@ -35,6 +35,24 @@ class CapabilityTests(unittest.TestCase):
 
         registry.admit("roots")
         self.assertEqual(registry.select(Capability.PROVENANCE).provider_id, "roots")
+
+    def test_one_provider_may_advertise_multiple_capabilities(self):
+        registry = CapabilityRegistry()
+        registry.register(
+            provider("multi", ProviderKind.EXTERNAL, Capability.PROVENANCE)
+        )
+        registry.register(
+            provider("multi", ProviderKind.EXTERNAL, Capability.HOSTILE_REVIEW)
+        )
+        registry.admit("multi")
+        self.assertEqual(
+            registry.select(Capability.PROVENANCE).provider_id,
+            "multi",
+        )
+        self.assertEqual(
+            registry.select(Capability.HOSTILE_REVIEW).provider_id,
+            "multi",
+        )
 
 
 if __name__ == "__main__":

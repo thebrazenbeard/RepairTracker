@@ -14,6 +14,7 @@ class Capability(StrEnum):
     DEBUGGING = "DEBUGGING"
     SECURITY_REVIEW = "SECURITY_REVIEW"
     OBSERVABILITY = "OBSERVABILITY"
+    CONTROL_PLANE = "CONTROL_PLANE"
 
 
 class ProviderKind(StrEnum):
@@ -35,19 +36,33 @@ class CapabilityAdvertisement:
 
 
 class CapabilityRegistry:
-    """Discovery and admission are deliberately separate."""
+    """Discovery and admission are deliberately separate.
+
+    One provider may advertise several capabilities. Admission applies to the
+    provider identity, not just one advertisement, but does not grant any
+    authority beyond each advertisement's effect ceiling.
+    """
 
     def __init__(self) -> None:
-        self._providers: dict[str, CapabilityAdvertisement] = {}
+        self._providers: dict[
+            tuple[str, Capability], CapabilityAdvertisement
+        ] = {}
         self._admitted: set[str] = set()
 
     def register(self, advertisement: CapabilityAdvertisement) -> None:
-        if advertisement.provider_id in self._providers:
-            raise ValueError(f"provider already registered: {advertisement.provider_id}")
-        self._providers[advertisement.provider_id] = advertisement
+        key = (advertisement.provider_id, advertisement.capability)
+        if key in self._providers:
+            raise ValueError(
+                "provider capability already registered: "
+                f"{advertisement.provider_id}/{advertisement.capability}"
+            )
+        self._providers[key] = advertisement
 
     def admit(self, provider_id: str) -> None:
-        if provider_id not in self._providers:
+        if not any(
+            candidate_id == provider_id
+            for candidate_id, _ in self._providers
+        ):
             raise KeyError(provider_id)
         self._admitted.add(provider_id)
 
@@ -56,13 +71,15 @@ class CapabilityRegistry:
 
     def discovered(self, capability: Capability) -> tuple[CapabilityAdvertisement, ...]:
         return tuple(
-            provider for provider in self._providers.values()
-            if provider.capability is capability
+            provider
+            for (_, candidate_capability), provider in self._providers.items()
+            if candidate_capability is capability
         )
 
     def eligible(self, capability: Capability) -> tuple[CapabilityAdvertisement, ...]:
         return tuple(
-            provider for provider in self.discovered(capability)
+            provider
+            for provider in self.discovered(capability)
             if provider.provider_id in self._admitted
         )
 
@@ -70,9 +87,11 @@ class CapabilityRegistry:
         eligible = self.eligible(capability)
         if not eligible:
             raise LookupError(f"no admitted provider for capability {capability}")
-        # External specialization is progressive enhancement only after admission.
         return sorted(
             eligible,
-            key=lambda item: (item.provider_kind is ProviderKind.EXTERNAL, item.provider_id),
+            key=lambda item: (
+                item.provider_kind is ProviderKind.EXTERNAL,
+                item.provider_id,
+            ),
             reverse=True,
         )[0]

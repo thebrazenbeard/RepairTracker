@@ -26,5 +26,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Discovery smoke
         run: repairtracker discover . > repairtracker-system-model.json
+      - name: Portfolio bootstrap smoke
+        run: repairtracker portfolio-local . --portfolio-id self > repairtracker-portfolio.json
       - name: Hostile-review smoke
         run: repairtracker hostile-template "the repair is complete" --success "exact-subject verification passes"

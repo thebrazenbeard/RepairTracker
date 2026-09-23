@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 
+from .adapters.github import GitHubReadClient
 from .discovery import discover_repository
 from .hostile import HostileReviewRequest
+from .portfolio import bootstrap_portfolio, observe_local_repository
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -15,7 +18,25 @@ def _parser() -> argparse.ArgumentParser:
     discover.add_argument("path", nargs="?", default=".")
     discover.add_argument("--max-files", type=int, default=10_000)
 
-    hostile = sub.add_parser("hostile-template", help="emit hostile-review attack prompts")
+    portfolio_local = sub.add_parser(
+        "portfolio-local",
+        help="bootstrap a topology from one or more local repositories",
+    )
+    portfolio_local.add_argument("paths", nargs="+")
+    portfolio_local.add_argument("--portfolio-id", default="default")
+    portfolio_local.add_argument("--max-files", type=int, default=10_000)
+
+    portfolio_github = sub.add_parser(
+        "portfolio-github",
+        help="bootstrap a topology from explicit GitHub repositories (read-only)",
+    )
+    portfolio_github.add_argument("repositories", nargs="+")
+    portfolio_github.add_argument("--portfolio-id", default="default")
+    portfolio_github.add_argument("--token-env", default="GITHUB_TOKEN")
+
+    hostile = sub.add_parser(
+        "hostile-template", help="emit hostile-review attack prompts"
+    )
     hostile.add_argument("proposition")
     hostile.add_argument("--success", action="append", default=[])
 
@@ -32,17 +53,47 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
 
+    if args.command == "portfolio-local":
+        observations = [
+            observe_local_repository(path, max_files=args.max_files)
+            for path in args.paths
+        ]
+        topology = bootstrap_portfolio(
+            observations, portfolio_id=args.portfolio_id
+        )
+        print(json.dumps(topology.to_dict(), indent=2, sort_keys=True))
+        return 0
+
+    if args.command == "portfolio-github":
+        token = os.environ.get(args.token_env)
+        client = GitHubReadClient(token=token)
+        observations = [
+            client.observe_repository(repository)
+            for repository in args.repositories
+        ]
+        topology = bootstrap_portfolio(
+            observations, portfolio_id=args.portfolio_id
+        )
+        print(json.dumps(topology.to_dict(), indent=2, sort_keys=True))
+        return 0
+
     if args.command == "hostile-template":
         request = HostileReviewRequest(
             proposition=args.proposition,
             success_criteria=tuple(args.success),
         )
-        print(json.dumps({
-            "schema": "REPAIRTRACKER_HOSTILE_REVIEW_TEMPLATE_V0",
-            "proposition": request.proposition,
-            "success_criteria": list(request.success_criteria),
-            "attacks": list(request.prompts()),
-        }, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "schema": "REPAIRTRACKER_HOSTILE_REVIEW_TEMPLATE_V0",
+                    "proposition": request.proposition,
+                    "success_criteria": list(request.success_criteria),
+                    "attacks": list(request.prompts()),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
 
     raise AssertionError("unreachable")
