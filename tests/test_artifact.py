@@ -128,6 +128,39 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(claims, ())
         self.assertTrue(any("conflicting" in w for w in warnings))
 
+    def test_repository_digest_conflicting_with_manifest_fails_closed(self):
+        claims, warnings = extract_runtime_artifact_claims(
+            (
+                span(
+                    container_image_repo_digests=(
+                        "ghcr.io/acme/api@sha256:" + ("d" * 64),
+                    ),
+                    oci_manifest_digest="sha256:" + ("e" * 64),
+                ),
+            )
+        )
+        self.assertEqual(claims, ())
+        self.assertTrue(
+            any("repository and OCI manifest digests" in w for w in warnings)
+        )
+
+    def test_same_digest_under_multiple_repository_names_keeps_digest_not_name(self):
+        claims, warnings = extract_runtime_artifact_claims(
+            (
+                span(
+                    container_image_repo_digests=(
+                        "ghcr.io/acme/api@sha256:" + ("d" * 64),
+                        "mirror.example/acme/api@sha256:" + ("d" * 64),
+                    ),
+                    oci_manifest_digest="sha256:" + ("d" * 64),
+                ),
+            )
+        )
+        self.assertEqual(len(claims), 1)
+        self.assertEqual(claims[0].digest, "d" * 64)
+        self.assertIsNone(claims[0].artifact_name)
+        self.assertTrue(any("artifact name is ambiguous" in w for w in warnings))
+
     def test_runtime_artifact_edge_is_observed_not_verified(self):
         topology = PortfolioTopology("test")
         result = apply_runtime_artifact_topology(topology, (span(),))
