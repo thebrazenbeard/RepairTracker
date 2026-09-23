@@ -116,6 +116,82 @@ class TelemetryTests(unittest.TestCase):
             )
         )
 
+    def test_empty_service_namespace_normalizes_to_unspecified(self):
+        result = extract_otlp_json_spans(
+            {
+                "resourceSpans": [
+                    {
+                        "resource": {
+                            "attributes": [
+                                {
+                                    "key": "service.name",
+                                    "value": {"stringValue": " frontend "},
+                                },
+                                {
+                                    "key": "service.namespace",
+                                    "value": {"stringValue": ""},
+                                },
+                            ]
+                        },
+                        "scopeSpans": [
+                            {
+                                "spans": [
+                                    {
+                                        "traceId": "a" * 32,
+                                        "spanId": "1" * 16,
+                                        "name": "request",
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                ]
+            },
+            observed_at="2026-09-23T11:00:00+00:00",
+            source_locator="otel://fixture",
+        )
+        self.assertEqual(result.spans[0].service_name, "frontend")
+        self.assertIsNone(result.spans[0].service_namespace)
+
+    def test_duplicate_span_identity_fails_closed(self):
+        payload = {
+            "resourceSpans": [
+                {
+                    "resource": {
+                        "attributes": [
+                            {
+                                "key": "service.name",
+                                "value": {"stringValue": "frontend"},
+                            }
+                        ]
+                    },
+                    "scopeSpans": [
+                        {
+                            "spans": [
+                                {
+                                    "traceId": "a" * 32,
+                                    "spanId": "1" * 16,
+                                    "name": "one",
+                                },
+                                {
+                                    "traceId": "a" * 32,
+                                    "spanId": "1" * 16,
+                                    "name": "duplicate",
+                                },
+                            ]
+                        }
+                    ],
+                }
+            ]
+        }
+        result = extract_otlp_json_spans(
+            payload,
+            observed_at="2026-09-23T11:00:00+00:00",
+            source_locator="otel://fixture",
+        )
+        with self.assertRaises(ValueError):
+            apply_otel_service_topology(PortfolioTopology("test"), result.spans)
+
     def test_otlp_missing_service_name_is_warning_not_inference(self):
         result = extract_otlp_json_spans(
             {

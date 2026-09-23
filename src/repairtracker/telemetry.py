@@ -151,7 +151,10 @@ def extract_otlp_json_spans(
                 f"resourceSpans[{resource_index}] missing service.name; spans skipped"
             )
             continue
-        if not isinstance(namespace, str):
+        service_name = service_name.strip()
+        if isinstance(namespace, str):
+            namespace = namespace.strip() or None
+        else:
             namespace = None
 
         scope_spans = resource_group.get("scopeSpans", [])
@@ -217,7 +220,15 @@ def apply_otel_service_topology(
     claims and not VERIFIED relations.
     """
 
-    span_index = {(span.trace_id, span.span_id): span for span in spans}
+    span_index: dict[tuple[str, str], OTelSpanObservation] = {}
+    for span in spans:
+        key = (span.trace_id, span.span_id)
+        if key in span_index:
+            raise ValueError(
+                "duplicate OTLP span identity: "
+                f"{span.trace_id}:{span.span_id}"
+            )
+        span_index[key] = span
 
     for span in spans:
         evidence = EvidencePointer(
