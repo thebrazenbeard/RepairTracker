@@ -26,7 +26,8 @@ V0 implements these foundations:
 12. optional donor capability advertisements with exact-version qualification gates;
 13. portable runtime artifact identity from OpenTelemetry image/manifest digests;
 14. GitHub attestation discovery kept separate from cryptographic verification;
-15. SLSA/in-toto verified artifact-to-source binding through an optional GitHub CLI verifier.
+15. SLSA/in-toto verified artifact-to-source binding through an optional GitHub CLI verifier;
+16. read-only GitHub artifact deployment-record observation keyed by exact artifact digest.
 
 The point is to establish semantics, durable recovery, currentness, and topology evidence before adding repair automation.
 
@@ -79,7 +80,7 @@ repo A depends on repo B
     -> INFERRED using unique-package-provider-match
 ```
 
-The inferred edge retains both evidence pointers and a confidence below 1.0.
+The inferred edge retains both evidence pointers. Numeric confidence remains null because the structural heuristic is intentionally uncalibrated.
 
 Ambiguous providers do not produce a repository dependency edge.
 
@@ -148,13 +149,23 @@ REPOSITORY
 
 GitHub REST attestation discovery is never treated as verification. A VERIFIED artifact/source edge requires a cryptographic verification receipt, exact artifact digest match, exact source revision enforcement, validated SLSA provenance, and GitHub source-revision readback.
 
+GitHub artifact-metadata deployment records are a separate read-only evidence surface:
+
+```text
+ARTIFACT
+  -> DEPLOYED_TO / OBSERVED
+DEPLOYMENT_SURFACE
+```
+
+A deployment record, including one carrying an attestation ID, is not upgraded to cryptographic provenance. OpenTelemetry deployment IDs and GitHub deployment-record IDs are separate namespaces unless evidence explicitly maps them.
+
 See `ARTIFACT_ATTESTATION_V0.md`.
 
 ## Current frontier after artifact-attestation V0
 
 1. policy-driven promotion of selected GitHub candidate signals into RepairCases;
 2. executable semantic qualification probes for optional donor providers;
-3. richer deployment/environment topology beyond service-instance edge metadata;
+3. independently observed runtime/deployment identity mapping beyond self-reported telemetry and artifact metadata records;
 4. database/schema topology;
 5. normalized BugOps migration tooling over real legacy reports;
 6. repair work units and verification records;

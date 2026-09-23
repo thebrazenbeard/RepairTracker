@@ -47,7 +47,9 @@ Both must resolve to a SHA-256 digest.
 
 `container.image.id` is retained as observation context but is not promoted to portable artifact identity because OpenTelemetry documents it as runtime-specific.
 
-If one runtime observation reports conflicting repository digests, RepairTracker fails closed rather than selecting one.
+If one runtime observation reports conflicting repository digests, or a repository digest disagrees with `oci.manifest.digest`, RepairTracker fails closed rather than selecting one.
+
+If several repository names report the same digest, the portable digest is retained but the artifact name is left ambiguous rather than selecting one registry path arbitrarily.
 
 The runtime edge claim ceiling is:
 
@@ -97,7 +99,7 @@ V0 enforces:
 - exact full source Git revision through `--source-digest`;
 - SLSA provenance v1 predicate type;
 - optional exact signer workflow;
-- optional denial of self-hosted runners;
+- denial of self-hosted runners by default, with explicit policy opt-out;
 - optional OCI-registry bundle retrieval.
 
 The verifier returns an `AttestationVerificationReceipt` only after the GitHub CLI exits successfully and emits usable verified JSON.
@@ -141,6 +143,56 @@ with ceiling:
 `SOURCE_REVISION_EXISTS_IN_REPOSITORY`
 
 This readback prevents a provenance object from manufacturing a repository/revision identity not present in the observed portfolio.
+
+## Artifact deployment records
+
+RepairTracker also reads GitHub organization artifact-metadata deployment records by exact SHA-256 subject digest.
+
+The read adapter preserves the documented deployment fields:
+
+- record ID;
+- logical environment;
+- physical environment;
+- cluster;
+- deployment name;
+- attestation ID;
+- creation/update timestamps;
+- exact artifact digest;
+- deterministic payload digest.
+
+These records produce:
+
+```text
+ARTIFACT
+  --DEPLOYED_TO / OBSERVED-->
+DEPLOYMENT_SURFACE
+```
+
+with ceiling:
+
+`EXTERNAL_ARTIFACT_DEPLOYMENT_RECORD`
+
+This is not a cryptographic edge. The presence of an attestation ID in the deployment record does not substitute for `gh attestation verify`.
+
+OpenTelemetry `deployment.id` and GitHub artifact-metadata deployment-record IDs are not assumed to share an identity namespace.
+
+```text
+OTEL_DEPLOYMENT_ID != GITHUB_DEPLOYMENT_RECORD_ID
+```
+
+unless a future evidence-bearing mapping proves otherwise.
+
+## Live cryptographic qualification
+
+The CI `github-read-smoke` job performs a real cryptographic verification through RepairTracker's own file-verification adapter against a pinned public artifact:
+
+- repository: `cli/cli`;
+- release: `v2.100.0`;
+- source commit: `45437bc7eeeb3359bbfddd1742f79de7652fd3e2`;
+- artifact: `gh_2.100.0_linux_amd64.tar.gz`;
+- expected SHA-256: `e4d4bb4498e8d007abe545b6568926793ace1b6447da598294a610018cb164be`.
+
+The verifier defaults to `--deny-self-hosted-runners`. Callers may explicitly opt out when their own trust policy permits self-hosted build runners.
 
 ## Replay and evidence accumulation
 
