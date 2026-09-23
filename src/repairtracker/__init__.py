@@ -12,6 +12,13 @@ from .artifact import (
     apply_runtime_artifact_topology,
     extract_runtime_artifact_claims,
 )
+from .attestation import (
+    ArtifactProvenanceBindingResult,
+    AttestationVerificationReceipt,
+    SLSAProvenanceClaim,
+    bind_verified_artifact_provenance,
+    parse_verified_slsa_provenance,
+)
 from .case import RepairCase
 from .hostile import HostileReviewRequest, HostileReviewResult, ReviewOutcome
 from .portfolio import RepositoryObservation, bootstrap_portfolio
@@ -56,6 +63,8 @@ from .model import (
 
 __all__ = [
     "AppendReceipt",
+    "ArtifactProvenanceBindingResult",
+    "AttestationVerificationReceipt",
     "Capability",
     "CapabilityAdvertisement",
     "CapabilityRegistry",
@@ -86,6 +95,7 @@ __all__ = [
     "RevisionResolution",
     "RuntimeBindingResult",
     "RuntimeSourceClaim",
+    "SLSAProvenanceClaim",
     "SQLiteEventStore",
     "Severity",
     "StaleHeadError",
@@ -96,10 +106,12 @@ __all__ = [
     "apply_otel_service_topology",
     "apply_runtime_artifact_topology",
     "bind_runtime_sources",
+    "bind_verified_artifact_provenance",
     "bootstrap_portfolio",
     "extract_otlp_json_spans",
     "extract_runtime_artifact_claims",
     "extract_runtime_source_claims",
     "github_repository_id_from_url",
+    "parse_verified_slsa_provenance",
     "repair_event_to_otel_event",
 ]
