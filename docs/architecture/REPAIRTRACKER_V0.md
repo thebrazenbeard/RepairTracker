@@ -16,9 +16,10 @@ V0 implements five deliberately small foundations:
 2. append-only digest-chained repair events;
 3. read-only structural portfolio discovery;
 4. a versioned SystemModel whose discovered facts cannot manufacture authorization;
-5. native capability admission and hostile-review artifacts.
+5. native capability admission and hostile-review artifacts;
+6. a stdlib SQLite repair-event ledger with transactional head checks, monotonic generations, digest readback, and restart verification.
 
-The point is to establish semantics before adding automation.
+The point is to establish semantics and durable recovery before adding automation.
 
 ## Authority firewall
 
@@ -61,7 +62,7 @@ An external specialist is progressive enhancement:
 | Hostile review | Structured attack contract | Rezon |
 | Regression admission | Exact verification records | DriftGuard |
 | Work execution | Manual/native work units | Project Runner |
-| Recovery | Durable repair event log | WIP |
+| Recovery | SQLite durable repair event ledger | WIP |
 | Communication | Repair events/references | Chat Communication Bus |
 | Debugging | Repair attempt workflow | Masamune |
 | Security review | Native consequence metadata | Project Achilles |

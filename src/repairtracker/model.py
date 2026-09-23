@@ -183,6 +183,27 @@ class RepairEvent:
     def digest(self) -> str:
         return canonical_digest(self.body())
 
+    @classmethod
+    def from_body(cls, body: dict[str, Any]) -> "RepairEvent":
+        return cls(
+            event_id=str(body["event_id"]),
+            repair_id=str(body["repair_id"]),
+            event_type=str(body["event_type"]),
+            subject_id=str(body["subject_id"]),
+            evidence_class=EvidenceClass(str(body["evidence_class"])),
+            actor=str(body["actor"]),
+            payload=dict(body.get("payload", {})),
+            source_system=str(body.get("source_system", "repairtracker")),
+            source_subject=body.get("source_subject"),
+            event_time=str(body["event_time"]),
+            observed_time=str(body["observed_time"]),
+            predecessor_digest=body.get("predecessor_digest"),
+            authority_or_effect_ceiling=str(
+                body.get("authority_or_effect_ceiling", "OBSERVE_ONLY")
+            ),
+            trace_correlation=body.get("trace_correlation"),
+        )
+
 
 class EventLog:
     """Append-only, digest-chained RepairEvent collection for exactly one repair."""

@@ -3,6 +3,7 @@
 from .capabilities import Capability, CapabilityAdvertisement, CapabilityRegistry
 from .case import RepairCase
 from .hostile import HostileReviewRequest, HostileReviewResult, ReviewOutcome
+from .storage import AppendReceipt, LedgerIntegrityError, SQLiteEventStore, StaleHeadError
 from .model import (
     EffectState,
     EvidenceClass,
@@ -15,6 +16,7 @@ from .model import (
 )
 
 __all__ = [
+    "AppendReceipt",
     "Capability",
     "CapabilityAdvertisement",
     "CapabilityRegistry",
@@ -29,5 +31,8 @@ __all__ = [
     "RepairEvent",
     "ReviewOutcome",
     "Severity",
+    "SQLiteEventStore",
+    "StaleHeadError",
+    "LedgerIntegrityError",
     "TransitionError",
 ]
