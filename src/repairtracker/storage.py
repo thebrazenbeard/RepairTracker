@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -44,7 +45,7 @@ class SQLiteEventStore:
         return connection
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("PRAGMA journal_mode = WAL")
             connection.executescript(
                 """
@@ -67,7 +68,7 @@ class SQLiteEventStore:
             )
 
     def head(self, repair_id: str) -> tuple[str | None, int]:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             row = connection.execute(
                 "SELECT head_digest, generation FROM repair_heads WHERE repair_id = ?",
                 (repair_id,),
@@ -177,7 +178,7 @@ class SQLiteEventStore:
             connection.close()
 
     def load(self, repair_id: str) -> EventLog:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             rows = connection.execute(
                 """
                 SELECT generation, event_digest, body_json
