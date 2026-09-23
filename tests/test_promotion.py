@@ -164,6 +164,98 @@ class PromotionTests(unittest.TestCase):
             log = store.load(first.repair_case.repair_id)
             self.assertEqual(len(log.events), 1)
 
+    def test_policy_digest_is_order_invariant_for_semantic_sets(self):
+        first = SignalPromotionPolicy.from_dict(
+            {
+                "policy_id": "stable",
+                "rules": [
+                    {
+                        "rule_id": "b",
+                        "kinds": ["WORKFLOW_RUN", "ISSUE"],
+                        "states": ["timed_out", "failure"],
+                        "severity": "SEV-2",
+                    },
+                    {
+                        "rule_id": "a",
+                        "kinds": ["PULL_REQUEST"],
+                        "states": ["open"],
+                        "severity": "SEV-3",
+                    },
+                ],
+            }
+        )
+        reordered = SignalPromotionPolicy.from_dict(
+            {
+                "policy_id": "stable",
+                "rules": [
+                    {
+                        "rule_id": "a",
+                        "kinds": ["PULL_REQUEST"],
+                        "states": ["open"],
+                        "severity": "SEV-3",
+                    },
+                    {
+                        "rule_id": "b",
+                        "kinds": ["ISSUE", "WORKFLOW_RUN"],
+                        "states": ["failure", "timed_out"],
+                        "severity": "SEV-2",
+                    },
+                ],
+            }
+        )
+        self.assertEqual(first.digest, reordered.digest)
+
+    def test_non_boolean_subject_requirement_is_rejected(self):
+        with self.assertRaises(ValueError):
+            SignalPromotionPolicy.from_dict(
+                {
+                    "policy_id": "bad",
+                    "rules": [
+                        {
+                            "rule_id": "bad",
+                            "kinds": ["WORKFLOW_RUN"],
+                            "states": ["failure"],
+                            "severity": "SEV-2",
+                            "require_subject_ref": "false",
+                        }
+                    ],
+                }
+            )
+
+    def test_policy_change_is_surfaced_without_rewriting_case(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store = SQLiteEventStore(Path(temp) / "repairtracker.sqlite3")
+            first_policy = policy()
+            first = promote_signal(signal(), first_policy)
+            assert first is not None
+            persist_promotion(store, first)
+
+            changed_policy = SignalPromotionPolicy.from_dict(
+                {
+                    "policy_id": "changed",
+                    "rules": [
+                        {
+                            "rule_id": "failed-workflow",
+                            "kinds": ["WORKFLOW_RUN"],
+                            "states": ["failure", "timed_out", "startup_failure"],
+                            "severity": "SEV-1",
+                            "require_subject_ref": True,
+                        }
+                    ],
+                }
+            )
+            changed = promote_signal(signal(), changed_policy)
+            assert changed is not None
+            result = persist_promotion(store, changed)
+            self.assertFalse(result.created)
+            self.assertFalse(result.evidence_changed)
+            self.assertTrue(result.policy_changed)
+            self.assertNotEqual(
+                result.persisted_policy_digest,
+                result.incoming_policy_digest,
+            )
+            self.assertEqual(len(store.load(first.repair_case.repair_id).events), 1)
+
     def test_policy_has_no_implicit_rules(self):
         empty = SignalPromotionPolicy.from_dict(
             {"policy_id": "none", "rules": []}

@@ -39,6 +39,8 @@ Example:
 
 Rules match only fields that are already evidence in the GitHub signal envelope.
 
+Policy digests are canonical over rule IDs and set-like kind/state members. Reordering equivalent rules, kinds, or states therefore does not manufacture a new policy identity. Configuration booleans are type-checked rather than coerced from strings.
+
 Severity is policy-bound. RepairTracker does not infer severity from a title, repository, actor, or generic signal type.
 
 If no rule matches:
@@ -134,6 +136,8 @@ If a later observation has a different payload digest:
 - the promotion path reports `evidence_changed=true`;
 - it does not rewrite the original opening evidence;
 - it does not silently append a generic update.
+
+If the same signal is evaluated under a different policy digest, the existing case also remains untouched and the promotion path reports `policy_changed=true`. Governance drift is therefore visible independently from evidence drift.
 
 A separate evidence-update lifecycle can consume that condition later.
 

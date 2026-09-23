@@ -371,6 +371,9 @@ def main(argv: list[str] | None = None) -> int:
                     "generation": persisted.generation,
                     "event_digest": persisted.event_digest,
                     "evidence_changed": persisted.evidence_changed,
+                    "policy_changed": persisted.policy_changed,
+                    "incoming_policy_digest": persisted.incoming_policy_digest,
+                    "persisted_policy_digest": persisted.persisted_policy_digest,
                     "incoming_signal_payload_digest": (
                         persisted.incoming_signal_payload_digest
                     ),

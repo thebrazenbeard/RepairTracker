@@ -50,8 +50,8 @@ class PromotionRule:
     def to_dict(self) -> dict[str, Any]:
         return {
             "rule_id": self.rule_id,
-            "kinds": list(self.kinds),
-            "states": list(self.states),
+            "kinds": sorted(set(self.kinds)),
+            "states": sorted(set(self.states)),
             "severity": self.severity.value,
             "require_subject_ref": self.require_subject_ref,
         }
@@ -92,15 +92,21 @@ class SignalPromotionPolicy:
                 isinstance(state, str) for state in states
             ):
                 raise ValueError("promotion rule states must be a string list")
+            require_subject_ref = item.get("require_subject_ref", False)
+            if not isinstance(require_subject_ref, bool):
+                raise ValueError(
+                    "promotion rule require_subject_ref must be a boolean"
+                )
+            severity = item.get("severity")
+            if not isinstance(severity, str):
+                raise ValueError("promotion rule severity must be a string")
             parsed.append(
                 PromotionRule(
                     rule_id=str(item.get("rule_id", "")),
                     kinds=tuple(kinds),
                     states=tuple(states),
-                    severity=Severity(str(item["severity"])),
-                    require_subject_ref=bool(
-                        item.get("require_subject_ref", False)
-                    ),
+                    severity=Severity(severity),
+                    require_subject_ref=require_subject_ref,
                 )
             )
         return cls(policy_id=policy_id, rules=tuple(parsed))
@@ -108,7 +114,10 @@ class SignalPromotionPolicy:
     def to_dict(self) -> dict[str, Any]:
         return {
             "policy_id": self.policy_id,
-            "rules": [rule.to_dict() for rule in self.rules],
+            "rules": [
+                rule.to_dict()
+                for rule in sorted(self.rules, key=lambda item: item.rule_id)
+            ],
         }
 
     @property
@@ -144,6 +153,9 @@ class PromotionPersistence:
     incoming_signal_payload_digest: str
     persisted_signal_payload_digest: str
     evidence_changed: bool
+    incoming_policy_digest: str
+    persisted_policy_digest: str
+    policy_changed: bool
 
 
 def github_signal_key(signal: GitHubRepairSignal) -> str:
@@ -272,6 +284,16 @@ def _persisted_signal_digest(event: RepairEvent) -> str:
     return value
 
 
+def _persisted_policy_digest(event: RepairEvent) -> str:
+    promotion = event.payload.get("promotion")
+    if not isinstance(promotion, dict):
+        raise ValueError("persisted promotion event is missing policy payload")
+    value = promotion.get("policy_digest")
+    if not isinstance(value, str) or not value:
+        raise ValueError("persisted promotion event has no policy digest")
+    return value
+
+
 def persist_promotion(
     store: SQLiteEventStore,
     promotion: SignalPromotion,
@@ -286,6 +308,7 @@ def persist_promotion(
 
     event = promotion.opening_event
     incoming_digest = _persisted_signal_digest(event)
+    incoming_policy_digest = _persisted_policy_digest(event)
 
     head_digest, generation = store.head(event.repair_id)
     if head_digest is None:
@@ -300,6 +323,9 @@ def persist_promotion(
                 incoming_signal_payload_digest=incoming_digest,
                 persisted_signal_payload_digest=incoming_digest,
                 evidence_changed=False,
+                incoming_policy_digest=incoming_policy_digest,
+                persisted_policy_digest=incoming_policy_digest,
+                policy_changed=False,
             )
         except (StaleHeadError, sqlite3.IntegrityError):
             # Another writer may have won the same deterministic promotion.
@@ -321,6 +347,7 @@ def persist_promotion(
     if existing.source_subject != event.source_subject:
         raise ValueError("promotion event source identity collision")
     persisted_digest = _persisted_signal_digest(existing)
+    persisted_policy_digest = _persisted_policy_digest(existing)
     return PromotionPersistence(
         repair_id=event.repair_id,
         event_id=event.event_id,
@@ -330,4 +357,9 @@ def persist_promotion(
         incoming_signal_payload_digest=incoming_digest,
         persisted_signal_payload_digest=persisted_digest,
         evidence_changed=(persisted_digest != incoming_digest),
+        incoming_policy_digest=incoming_policy_digest,
+        persisted_policy_digest=persisted_policy_digest,
+        policy_changed=(
+            persisted_policy_digest != incoming_policy_digest
+        ),
     )
