@@ -144,7 +144,11 @@ The event timestamp is the RepairEvent occurrence time. The observed timestamp i
 
 Optional W3C trace context supplies trace ID, span ID, and flags.
 
-This V0 representation is not an OTLP protobuf exporter. Export transport is a later adapter boundary.
+RepairTracker can also ingest OTLP/JSON TracesData. It normalizes valid spans, uses Resource `service.name` (and optional `service.namespace`) as service identity, and can add an OBSERVED `CALLS` edge when a child span belongs to a different service than its parent span in the same trace.
+
+That edge means only that a cross-service parent/child call was observed in that trace. It is not promoted to a permanent `DEPENDS_ON` relation and it is not `VERIFIED`.
+
+This V0 representation and ingestion path are not an OTLP network exporter or collector. Export transport is a later adapter boundary.
 
 ## Donor capabilities
 
@@ -166,9 +170,34 @@ Current descriptors:
 
 Advertisements bind to the observed repository revision when available and use an `OBSERVE_ONLY` effect ceiling.
 
-Detection does not qualify or admit the provider. The current descriptor layer is non-executable discovery metadata; semantic qualification is a later gate. Admission still requires a separate registry action and never enlarges the provider's effect ceiling.
+Detection does not qualify or admit the provider. The descriptor layer is non-executable discovery metadata.
+
+External capability selection requires three distinct states:
+
+```text
+DISCOVERED
+  -> QUALIFIED for exact provider version + capability with evidence receipt
+  -> ADMITTED
+  -> ELIGIBLE within the advertisement's existing effect ceiling
+```
+
+Qualification and admission may occur in either order, but both must exist before an external provider can be selected. A qualification receipt for another revision does not qualify the observed provider revision. Neither qualification nor admission enlarges the provider's effect ceiling.
 
 BugOps remains a migration/import source, not a continuing optional authority provider.
+
+## GitHub repair signals
+
+The GitHub adapter can read bounded candidate repair signals from an explicitly selected repository:
+
+- open issues;
+- open pull requests;
+- failed/cancelled/timed-out/action-required/startup-failure workflow runs.
+
+Each signal records repository identity, external identifier, locator, observation time, state, a commit subject when GitHub supplies one, and a deterministic payload digest.
+
+A GitHub issue, pull request, or failed workflow is evidence that something deserves attention. It is not automatically a RepairCase and does not establish root cause or repair authority.
+
+The live CI qualification exercises both GitHub portfolio bootstrap and GitHub repair-signal ingestion using a read-only GitHub token.
 
 ## Known limits
 

@@ -1,11 +1,23 @@
 """RepairTracker V0 standalone repair spine."""
 
-from .capabilities import Capability, CapabilityAdvertisement, CapabilityRegistry
+from .capabilities import (
+    Capability,
+    CapabilityAdvertisement,
+    CapabilityRegistry,
+    QualificationReceipt,
+)
 from .case import RepairCase
 from .hostile import HostileReviewRequest, HostileReviewResult, ReviewOutcome
 from .portfolio import RepositoryObservation, bootstrap_portfolio
 from .storage import AppendReceipt, LedgerIntegrityError, SQLiteEventStore, StaleHeadError
-from .telemetry import TraceContext, repair_event_to_otel_event
+from .telemetry import (
+    OTelExtractionResult,
+    OTelSpanObservation,
+    TraceContext,
+    apply_otel_service_topology,
+    extract_otlp_json_spans,
+    repair_event_to_otel_event,
+)
 from .topology import (
     CurrentnessEvidence,
     CurrentnessKind,
@@ -33,6 +45,7 @@ __all__ = [
     "Capability",
     "CapabilityAdvertisement",
     "CapabilityRegistry",
+    "QualificationReceipt",
     "CurrentnessEvidence",
     "CurrentnessKind",
     "EffectState",
@@ -44,6 +57,8 @@ __all__ = [
     "IncidentState",
     "LedgerIntegrityError",
     "NodeKind",
+    "OTelExtractionResult",
+    "OTelSpanObservation",
     "PortfolioTopology",
     "RelationDisposition",
     "RelationType",
@@ -59,6 +74,8 @@ __all__ = [
     "TopologyNode",
     "TraceContext",
     "TransitionError",
+    "apply_otel_service_topology",
     "bootstrap_portfolio",
+    "extract_otlp_json_spans",
     "repair_event_to_otel_event",
 ]

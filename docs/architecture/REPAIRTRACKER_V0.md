@@ -21,8 +21,9 @@ V0 implements these foundations:
 7. multi-repository PortfolioTopology with observed/inferred relation separation;
 8. exact-revision currentness evidence where available;
 9. local and GitHub read-only portfolio observation;
-10. OpenTelemetry-compatible event correlation;
-11. optional donor capability advertisements.
+10. OpenTelemetry-compatible event correlation and OTLP/JSON observed service-call ingestion;
+11. bounded GitHub issue/PR/workflow repair-signal ingestion;
+12. optional donor capability advertisements with exact-version qualification gates.
 
 The point is to establish semantics, durable recovery, currentness, and topology evidence before adding repair automation.
 
@@ -101,7 +102,7 @@ An external specialist is progressive enhancement:
 | Security review | Native consequence metadata | Project Achilles |
 | Control-plane context | Native source/runtime/effect separation | Vera Control Plane |
 
-Provider discovery and provider admission are separate. A provider may advertise more than one capability without gaining additional authority.
+Provider discovery, exact-version capability qualification, and provider admission are separate. External providers are selectable only after qualification and admission. A provider may advertise more than one capability without gaining additional authority, and qualification/admission never enlarges the advertised effect ceiling.
 
 ## BugOps disposition
 
@@ -130,9 +131,9 @@ A future Rezon provider may strengthen the review but may not silently change Re
 
 ## Current frontier after portfolio-bootstrap V0
 
-1. verified topology promotion rules from runtime/review evidence;
-2. service-call topology from OpenTelemetry traces;
-3. GitHub issue/PR/Actions repair-case ingestion;
+1. verified topology promotion policy beyond the current explicit verification-reference guard;
+2. service/repository binding so observed runtime calls can be correlated to source without guessing;
+3. policy-driven promotion of selected GitHub candidate signals into RepairCases;
 4. deployment/environment and database topology;
 5. normalized BugOps migration tooling over real legacy reports;
 6. repair work units and verification records;
