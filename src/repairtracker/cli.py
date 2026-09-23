@@ -3,12 +3,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 
 from .adapters.attestation_cli import GitHubCLIAttestationVerifier
 from .adapters.github import GitHubReadClient
 from .discovery import discover_repository
 from .hostile import HostileReviewRequest
 from .portfolio import bootstrap_portfolio, observe_local_repository
+from .promotion import (
+    SignalPromotionPolicy,
+    evaluate_signal,
+    persist_promotion,
+    promote_signal,
+)
+from .storage import SQLiteEventStore
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -89,6 +97,26 @@ def _parser() -> argparse.ArgumentParser:
     verify_attestation.add_argument("--signer-workflow")
     verify_attestation.add_argument("--deny-self-hosted-runners", action="store_true")
     verify_attestation.add_argument("--bundle-from-oci", action="store_true")
+
+    promotion_plan = sub.add_parser(
+        "github-promotion-plan",
+        help="evaluate GitHub candidate repair signals against an explicit policy",
+    )
+    promotion_plan.add_argument("repository")
+    promotion_plan.add_argument("--policy", required=True)
+    promotion_plan.add_argument("--max-items-per-kind", type=int, default=200)
+    promotion_plan.add_argument("--token-env", default="GITHUB_TOKEN")
+
+    promote = sub.add_parser(
+        "github-promote",
+        help="persist explicitly policy-matched GitHub signals as RepairCases",
+    )
+    promote.add_argument("repository")
+    promote.add_argument("--policy", required=True)
+    promote.add_argument("--sqlite", required=True)
+    promote.add_argument("--actor", default="repairtracker/promotion-engine")
+    promote.add_argument("--max-items-per-kind", type=int, default=200)
+    promote.add_argument("--token-env", default="GITHUB_TOKEN")
 
     hostile = sub.add_parser(
         "hostile-template", help="emit hostile-review attack prompts"
@@ -268,6 +296,103 @@ def main(argv: list[str] | None = None) -> int:
                         }
                         for item in receipts
                     ],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command in {"github-promotion-plan", "github-promote"}:
+        policy_payload = json.loads(
+            Path(args.policy).read_text(encoding="utf-8")
+        )
+        if not isinstance(policy_payload, dict):
+            raise SystemExit("promotion policy must be a JSON object")
+        policy = SignalPromotionPolicy.from_dict(policy_payload)
+        token = os.environ.get(args.token_env)
+        client = GitHubReadClient(token=token)
+        signal_result = client.observe_repair_signals(
+            args.repository,
+            max_items_per_kind=args.max_items_per_kind,
+        )
+
+        decisions = []
+        promotions = []
+        store = (
+            SQLiteEventStore(args.sqlite)
+            if args.command == "github-promote"
+            else None
+        )
+        for signal in signal_result.signals:
+            decision = evaluate_signal(signal, policy)
+            decision_payload = {
+                "signal_key": decision.signal_key,
+                "disposition": decision.disposition.value,
+                "policy_id": decision.policy_id,
+                "policy_digest": decision.policy_digest,
+                "rule_id": decision.rule_id,
+                "severity": (
+                    decision.severity.value
+                    if decision.severity is not None
+                    else None
+                ),
+                "reason": decision.reason,
+            }
+            decisions.append(decision_payload)
+
+            promotion = promote_signal(
+                signal,
+                policy,
+                actor=(
+                    args.actor
+                    if args.command == "github-promote"
+                    else "repairtracker/promotion-plan"
+                ),
+            )
+            if promotion is None:
+                continue
+
+            promotion_payload = {
+                "repair_id": promotion.repair_case.repair_id,
+                "title": promotion.repair_case.title,
+                "subject_id": promotion.repair_case.subject_id,
+                "severity": promotion.repair_case.severity.value,
+                "opening_event_id": promotion.opening_event.event_id,
+                "source_subject": promotion.opening_event.source_subject,
+                "authority_or_effect_ceiling": (
+                    promotion.opening_event.authority_or_effect_ceiling
+                ),
+            }
+            if store is not None:
+                persisted = persist_promotion(store, promotion)
+                promotion_payload["persistence"] = {
+                    "created": persisted.created,
+                    "generation": persisted.generation,
+                    "event_digest": persisted.event_digest,
+                    "evidence_changed": persisted.evidence_changed,
+                    "incoming_signal_payload_digest": (
+                        persisted.incoming_signal_payload_digest
+                    ),
+                    "persisted_signal_payload_digest": (
+                        persisted.persisted_signal_payload_digest
+                    ),
+                }
+            promotions.append(promotion_payload)
+
+        print(
+            json.dumps(
+                {
+                    "schema": (
+                        "REPAIRTRACKER_GITHUB_PROMOTION_V0"
+                        if store is not None
+                        else "REPAIRTRACKER_GITHUB_PROMOTION_PLAN_V0"
+                    ),
+                    "policy_id": policy.policy_id,
+                    "policy_digest": policy.digest,
+                    "decisions": decisions,
+                    "promotions": promotions,
+                    "warnings": list(signal_result.warnings),
                 },
                 indent=2,
                 sort_keys=True,

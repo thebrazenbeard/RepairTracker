@@ -50,6 +50,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: repairtracker github-signals ${{ github.repository }} --max-items-per-kind 50 > repairtracker-github-signals.json
+      - name: Live policy-governed promotion plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: repairtracker github-promotion-plan ${{ github.repository }} --policy examples/github-signal-promotion-policy.json --max-items-per-kind 50 > repairtracker-github-promotion-plan.json
       - name: Live exact GitHub revision resolution
         env:
           GITHUB_TOKEN: ${{ github.token }}
