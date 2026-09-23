@@ -167,11 +167,14 @@ class PortfolioTopology:
 
     @property
     def currentness_digest(self) -> str:
-        rows = []
-        for subject_id, item in sorted(self.currentness.items()):
-            row = asdict(item)
-            row["kind"] = item.kind.value
-            rows.append((subject_id, row))
+        rows = [
+            {
+                "subject_id": subject_id,
+                "kind": item.kind.value,
+                "revision": item.revision,
+            }
+            for subject_id, item in sorted(self.currentness.items())
+        ]
         return canonical_digest(rows)
 
     @property

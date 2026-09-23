@@ -99,11 +99,11 @@ For each explicitly selected repository it:
 
 1. reads repository metadata;
 2. resolves the default branch;
-3. pins that branch to its exact observed commit SHA;
-4. reads the recursive Git tree at that SHA;
-5. reads supported dependency manifests at that same SHA;
-6. identifies workflow paths from that exact Git tree;
-7. returns a `RepositoryObservation`.
+3. captures branch head B0;
+4. reads the recursive Git tree and supported dependency manifests pinned to B0;
+5. identifies workflow paths from that exact Git tree;
+6. re-reads branch head and default branch as B1;
+7. accepts the observation only when B0/B1 are stable, retrying the full sequence once before failing closed.
 
 The stdlib transport exposes GET only and restricts its API host to `https://api.github.com`.
 
@@ -146,7 +146,7 @@ This V0 representation is not an OTLP protobuf exporter. Export transport is a l
 
 ## Donor capabilities
 
-Known donor repositories can advertise optional capabilities only when the exact repository identity is recognized.
+Known donor repositories can emit unqualified optional-capability advertisements only when the exact repository identity is recognized. Repository identity is an integration hint, not proof that the current revision satisfies a historical donor contract.
 
 Current descriptors:
 
@@ -164,7 +164,7 @@ Current descriptors:
 
 Advertisements bind to the observed repository revision when available and use an `OBSERVE_ONLY` effect ceiling.
 
-Detection does not admit the provider. Admission still requires a separate registry action. Admission still does not enlarge the provider's effect ceiling.
+Detection does not qualify or admit the provider. The current descriptor layer is non-executable discovery metadata; semantic qualification is a later gate. Admission still requires a separate registry action and never enlarges the provider's effect ceiling.
 
 BugOps remains a migration/import source, not a continuing optional authority provider.
 

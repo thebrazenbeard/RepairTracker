@@ -1,7 +1,7 @@
 import base64
 import unittest
 
-from repairtracker.adapters.github import GitHubReadClient
+from repairtracker.adapters.github import GitHubReadClient, GitHubReadError
 
 
 class FakeTransport:
@@ -34,8 +34,24 @@ class FakeTransport:
         raise AssertionError(f"unexpected GET: {path} {query}")
 
 
+class MovingTransport:
+    def __init__(self):
+        self.branch_reads = 0
+
+    def get_json(self, path, query=None):
+        if path == "/repos/acme/app":
+            return {"default_branch": "main"}
+        if path == "/repos/acme/app/branches/main":
+            self.branch_reads += 1
+            char = ["a", "b", "c", "d"][self.branch_reads - 1]
+            return {"commit": {"sha": char * 40}}
+        if "/git/trees/" in path:
+            return {"truncated": False, "tree": []}
+        raise AssertionError(f"unexpected GET: {path} {query}")
+
+
 class GitHubAdapterTests(unittest.TestCase):
-    def test_read_client_binds_exact_default_branch_revision(self):
+    def test_read_client_binds_stable_exact_default_branch_revision(self):
         transport = FakeTransport()
         observation = GitHubReadClient(transport=transport).observe_repository(
             "acme/app"
@@ -48,6 +64,11 @@ class GitHubAdapterTests(unittest.TestCase):
         self.assertTrue(
             all(path.startswith("/repos/") for path, _ in transport.calls)
         )
+
+    def test_unstable_default_branch_fails_closed_after_retry(self):
+        client = GitHubReadClient(transport=MovingTransport())
+        with self.assertRaises(GitHubReadError):
+            client.observe_repository("acme/app")
 
     def test_invalid_repo_name_fails_before_transport(self):
         transport = FakeTransport()

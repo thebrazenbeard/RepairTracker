@@ -107,6 +107,18 @@ class PortfolioTests(unittest.TestCase):
         self.assertEqual(currentness.revision, "a" * 40)
         self.assertNotEqual(first.currentness_digest, second.currentness_digest)
 
+        later_same_revision = RepositoryObservation(
+            repository_id="acme/app",
+            default_branch="main",
+            revision="a" * 40,
+            observed_at="2026-09-23T11:00:00+00:00",
+            source_system="different-reader",
+            source_locator="fixture://later",
+            files={},
+        )
+        later = bootstrap_portfolio([later_same_revision], portfolio_id="acme")
+        self.assertEqual(first.currentness_digest, later.currentness_digest)
+
     def test_local_bootstrap_reads_manifests_without_executing_them(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "sample"

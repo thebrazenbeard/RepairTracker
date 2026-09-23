@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from dataclasses import replace
 from datetime import datetime, timezone
 import json
 import os
@@ -88,24 +89,30 @@ class GitHubReadClient:
     def token_from_env(name: str = "GITHUB_TOKEN") -> str | None:
         return os.environ.get(name)
 
-    def observe_repository(self, full_name: str) -> RepositoryObservation:
-        if not _FULL_NAME.fullmatch(full_name):
-            raise ValueError(f"invalid GitHub repository name: {full_name!r}")
-
-        encoded = "/".join(quote(part, safe="") for part in full_name.split("/"))
+    def _repository_default_branch(self, encoded: str, full_name: str) -> str:
         repo = self.transport.get_json(f"/repos/{encoded}")
         default_branch = repo.get("default_branch")
         if not isinstance(default_branch, str) or not default_branch:
             raise GitHubReadError(f"repository has no usable default branch: {full_name}")
+        return default_branch
 
+    def _branch_revision(self, encoded: str, branch_name: str, full_name: str) -> str:
         branch = self.transport.get_json(
-            f"/repos/{encoded}/branches/{quote(default_branch, safe='')}"
+            f"/repos/{encoded}/branches/{quote(branch_name, safe='')}"
         )
         commit = branch.get("commit", {})
         revision = commit.get("sha")
         if not isinstance(revision, str) or not revision:
             raise GitHubReadError(f"default branch has no usable commit SHA: {full_name}")
+        return revision
 
+    def _observe_pinned(
+        self,
+        full_name: str,
+        encoded: str,
+        default_branch: str,
+        revision: str,
+    ) -> RepositoryObservation:
         tree = self.transport.get_json(
             f"/repos/{encoded}/git/trees/{quote(revision, safe='')}",
             {"recursive": "1"},
@@ -192,4 +199,51 @@ class GitHubReadClient:
             tree_paths=tuple(sorted(tree_paths)),
             workflows=tuple(workflows),
             warnings=tuple(warnings),
+        )
+
+    def observe_repository(self, full_name: str) -> RepositoryObservation:
+        if not _FULL_NAME.fullmatch(full_name):
+            raise ValueError(f"invalid GitHub repository name: {full_name!r}")
+
+        encoded = "/".join(quote(part, safe="") for part in full_name.split("/"))
+        retried = False
+
+        for attempt in range(2):
+            default_branch_b0 = self._repository_default_branch(encoded, full_name)
+            revision_b0 = self._branch_revision(
+                encoded, default_branch_b0, full_name
+            )
+            observation = self._observe_pinned(
+                full_name,
+                encoded,
+                default_branch_b0,
+                revision_b0,
+            )
+            revision_b1 = self._branch_revision(
+                encoded, default_branch_b0, full_name
+            )
+            default_branch_b1 = self._repository_default_branch(
+                encoded, full_name
+            )
+
+            if (
+                revision_b0 == revision_b1
+                and default_branch_b0 == default_branch_b1
+            ):
+                if retried:
+                    observation = replace(
+                        observation,
+                        warnings=(
+                            *observation.warnings,
+                            "GitHub default-branch snapshot stabilized after one retry",
+                        ),
+                    )
+                return observation
+
+            if attempt == 0:
+                retried = True
+                continue
+
+        raise GitHubReadError(
+            f"GitHub default branch remained unstable across two reads: {full_name}"
         )
