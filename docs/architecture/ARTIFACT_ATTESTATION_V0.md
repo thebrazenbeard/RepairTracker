@@ -47,7 +47,9 @@ Both must resolve to a SHA-256 digest.
 
 `container.image.id` is retained as observation context but is not promoted to portable artifact identity because OpenTelemetry documents it as runtime-specific.
 
-If one runtime observation reports conflicting repository digests, RepairTracker fails closed rather than selecting one.
+If one runtime observation reports conflicting repository digests, or a repository digest disagrees with `oci.manifest.digest`, RepairTracker fails closed rather than selecting one.
+
+If several repository names report the same digest, the portable digest is retained but the artifact name is left ambiguous rather than selecting one registry path arbitrarily.
 
 The runtime edge claim ceiling is:
 
@@ -97,7 +99,7 @@ V0 enforces:
 - exact full source Git revision through `--source-digest`;
 - SLSA provenance v1 predicate type;
 - optional exact signer workflow;
-- optional denial of self-hosted runners;
+- denial of self-hosted runners by default, with explicit policy opt-out;
 - optional OCI-registry bundle retrieval.
 
 The verifier returns an `AttestationVerificationReceipt` only after the GitHub CLI exits successfully and emits usable verified JSON.

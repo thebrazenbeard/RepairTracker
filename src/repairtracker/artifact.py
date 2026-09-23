@@ -133,7 +133,33 @@ def extract_runtime_artifact_claims(
                 )
                 continue
             digest = next(iter(unique_digests))
-            artifact_name = sorted({item[0] for item in parsed_repo_digests})[0]
+            if span.oci_manifest_digest is not None:
+                manifest_digest = _parse_sha256(span.oci_manifest_digest)
+                if manifest_digest is None:
+                    warnings.append(
+                        f"{span.trace_id}:{span.span_id} has invalid "
+                        "oci.manifest.digest alongside repository digests; "
+                        "binding skipped"
+                    )
+                    continue
+                if manifest_digest != digest:
+                    warnings.append(
+                        f"{span.trace_id}:{span.span_id} reports conflicting "
+                        "container repository and OCI manifest digests; "
+                        "binding skipped"
+                    )
+                    continue
+
+            repository_names = sorted({item[0] for item in parsed_repo_digests})
+            if len(repository_names) == 1:
+                artifact_name = repository_names[0]
+            else:
+                artifact_name = None
+                warnings.append(
+                    f"{span.trace_id}:{span.span_id} reports one portable "
+                    "artifact digest under multiple repository names; digest "
+                    "retained but artifact name is ambiguous"
+                )
             source_attribute = "container.image.repo_digests"
         elif span.oci_manifest_digest is not None:
             digest = _parse_sha256(span.oci_manifest_digest)
