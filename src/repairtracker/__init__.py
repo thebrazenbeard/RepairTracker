@@ -7,10 +7,18 @@ from .capabilities import (
     QualificationReceipt,
 )
 from .artifact import (
+    ArtifactAttestationVerifier,
+    AttestedArtifactResult,
+    ObservedArtifactDeploymentRecord,
     RuntimeArtifactClaim,
     RuntimeArtifactResult,
+    SLSA_PROVENANCE_V1,
+    VerifiedArtifactProvenance,
+    apply_artifact_deployment_records,
     apply_runtime_artifact_topology,
+    bind_attested_runtime_artifacts,
     extract_runtime_artifact_claims,
+    normalize_sha256_digest,
 )
 from .case import RepairCase
 from .hostile import HostileReviewRequest, HostileReviewResult, ReviewOutcome
@@ -56,6 +64,8 @@ from .model import (
 
 __all__ = [
     "AppendReceipt",
+    "ArtifactAttestationVerifier",
+    "AttestedArtifactResult",
     "Capability",
     "CapabilityAdvertisement",
     "CapabilityRegistry",
@@ -73,6 +83,7 @@ __all__ = [
     "NodeKind",
     "OTelExtractionResult",
     "OTelSpanObservation",
+    "ObservedArtifactDeploymentRecord",
     "PortfolioTopology",
     "RelationDisposition",
     "RelationType",
@@ -83,6 +94,7 @@ __all__ = [
     "ReviewOutcome",
     "RuntimeArtifactClaim",
     "RuntimeArtifactResult",
+    "SLSA_PROVENANCE_V1",
     "RevisionResolution",
     "RuntimeBindingResult",
     "RuntimeSourceClaim",
@@ -93,13 +105,17 @@ __all__ = [
     "TopologyNode",
     "TraceContext",
     "TransitionError",
+    "VerifiedArtifactProvenance",
+    "apply_artifact_deployment_records",
     "apply_otel_service_topology",
     "apply_runtime_artifact_topology",
+    "bind_attested_runtime_artifacts",
     "bind_runtime_sources",
     "bootstrap_portfolio",
     "extract_otlp_json_spans",
     "extract_runtime_artifact_claims",
     "extract_runtime_source_claims",
     "github_repository_id_from_url",
+    "normalize_sha256_digest",
     "repair_event_to_otel_event",
 ]

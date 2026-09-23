@@ -83,6 +83,8 @@ class OTelSpanObservation:
     container_image_name: str | None = None
     container_image_repo_digests: tuple[str, ...] = ()
     oci_manifest_digest: str | None = None
+    deployment_id: str | None = None
+    deployment_name: str | None = None
 
     def __post_init__(self) -> None:
         if not _TRACE_ID.fullmatch(self.trace_id) or set(self.trace_id) == {"0"}:
@@ -173,6 +175,8 @@ def extract_otlp_json_spans(
             "container.image.repo_digests"
         )
         oci_manifest_digest = resource_attrs.get("oci.manifest.digest")
+        deployment_id = resource_attrs.get("deployment.id")
+        deployment_name = resource_attrs.get("deployment.name")
         if not isinstance(service_name, str) or not service_name.strip():
             warnings.append(
                 f"resourceSpans[{resource_index}] missing service.name; spans skipped"
@@ -196,6 +200,8 @@ def extract_otlp_json_spans(
         container_image_id = optional_text(container_image_id)
         container_image_name = optional_text(container_image_name)
         oci_manifest_digest = optional_text(oci_manifest_digest)
+        deployment_id = optional_text(deployment_id)
+        deployment_name = optional_text(deployment_name)
         if isinstance(container_image_repo_digests, list):
             repo_digests = tuple(
                 value.strip()
@@ -255,6 +261,8 @@ def extract_otlp_json_spans(
                             container_image_name=container_image_name,
                             container_image_repo_digests=repo_digests,
                             oci_manifest_digest=oci_manifest_digest,
+                            deployment_id=deployment_id,
+                            deployment_name=deployment_name,
                         )
                     )
                 except ValueError as exc:

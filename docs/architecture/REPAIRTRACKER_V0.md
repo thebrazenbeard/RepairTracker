@@ -23,7 +23,10 @@ V0 implements these foundations:
 9. local and GitHub read-only portfolio observation;
 10. OpenTelemetry-compatible event correlation and OTLP/JSON observed service-call ingestion;
 11. bounded GitHub issue/PR/workflow repair-signal ingestion;
-12. optional donor capability advertisements with exact-version qualification gates.
+12. optional donor capability advertisements with exact-version qualification gates;
+13. portable runtime artifact identity from OpenTelemetry OCI/repository digests;
+14. cryptographically verified artifact build provenance bound to an exact source revision;
+15. read-only external artifact deployment-record observation.
 
 The point is to establish semantics, durable recovery, currentness, and topology evidence before adding repair automation.
 
@@ -76,7 +79,7 @@ repo A depends on repo B
     -> INFERRED using unique-package-provider-match
 ```
 
-The inferred edge retains both evidence pointers and a confidence below 1.0.
+The inferred edge retains both evidence pointers. Its numeric confidence is deliberately null because the structural heuristic has not been empirically calibrated.
 
 Ambiguous providers do not produce a repository dependency edge.
 
@@ -129,15 +132,44 @@ The same-context reviewer must identify itself as correlated rather than pretend
 
 A future Rezon provider may strengthen the review but may not silently change RepairTracker state or effect authority.
 
-## Current frontier after portfolio-bootstrap V0
+## Artifact and deployment attestation
 
-1. verified topology promotion policy beyond the current explicit verification-reference guard;
-2. service/repository binding so observed runtime calls can be correlated to source without guessing;
-3. policy-driven promotion of selected GitHub candidate signals into RepairCases;
-4. deployment/environment and database topology;
+The runtime/source bridge is now extended through immutable artifact identity.
+
+RepairTracker preserves these layers separately:
+
+```text
+SERVICE_INSTANCE
+  --RUNS_ARTIFACT / OBSERVED-->
+ARTIFACT
+  --BUILT_FROM / VERIFIED-->
+SOURCE_REVISION
+  --BELONGS_TO / VERIFIED-->
+REPOSITORY
+```
+
+Portable runtime artifact identity comes from OpenTelemetry repository/OCI SHA-256 digests. Runtime-specific image IDs do not qualify as portable artifact identity.
+
+The `BUILT_FROM` edge requires a verifier receipt. The built-in GitHub adapter delegates cryptographic verification to the official `gh attestation verify` path with exact repository, source revision, predicate, and artifact digest constraints. Merely finding a stored attestation is insufficient.
+
+External GitHub artifact deployment records remain a separate OBSERVED surface:
+
+```text
+ARTIFACT --DEPLOYED_TO / OBSERVED--> DEPLOYMENT_SURFACE
+```
+
+OpenTelemetry deployment IDs and GitHub deployment-record IDs are not equated by name.
+
+See `ARTIFACT_ATTESTATION_V0.md`.
+
+## Current frontier after artifact-attestation V0
+
+1. independently observed runtime/deployment inventory beyond self-reported telemetry;
+2. policy-driven promotion of selected GitHub candidate signals into RepairCases;
+3. deployment/environment and database topology beyond artifact deployment records;
+4. native semantic qualification suites for optional donor providers;
 5. normalized BugOps migration tooling over real legacy reports;
 6. repair work units and verification records;
-7. OTLP exporter/collector adapter;
-8. executable optional donor adapters behind capability ceilings;
-9. recurrence detection and monitoring windows;
-10. behavioral qualification on a real cloned multi-repository portfolio.
+7. OTLP collector/exporter adapter;
+8. recurrence detection and monitoring windows;
+9. behavioral qualification on a real cloned multi-repository portfolio.

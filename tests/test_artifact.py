@@ -92,6 +92,39 @@ class ArtifactTests(unittest.TestCase):
             "sha256:" + ("d" * 64),
         )
 
+    def test_otlp_extracts_deployment_identity_without_equating_external_ids(self):
+        payload = {
+            "resourceSpans": [
+                {
+                    "resource": {
+                        "attributes": [
+                            {"key": "service.name", "value": {"stringValue": "api"}},
+                            {"key": "deployment.id", "value": {"stringValue": "otel-deploy-42"}},
+                            {"key": "deployment.name", "value": {"stringValue": "api-prod"}},
+                        ]
+                    },
+                    "scopeSpans": [
+                        {
+                            "spans": [
+                                {
+                                    "traceId": "a" * 32,
+                                    "spanId": "1" * 16,
+                                    "name": "request",
+                                }
+                            ]
+                        }
+                    ],
+                }
+            ]
+        }
+        result = extract_otlp_json_spans(
+            payload,
+            observed_at="2026-09-23T13:20:00+00:00",
+            source_locator="otel://fixture",
+        )
+        self.assertEqual(result.spans[0].deployment_id, "otel-deploy-42")
+        self.assertEqual(result.spans[0].deployment_name, "api-prod")
+
     def test_repository_digest_is_preferred_portable_identity(self):
         claims, warnings = extract_runtime_artifact_claims((span(),))
         self.assertEqual(warnings, ())
