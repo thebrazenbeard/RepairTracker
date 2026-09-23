@@ -35,6 +35,8 @@ class RuntimeArtifactClaim:
     observed_at: str
     source_locator: str
     evidence: EvidencePointer
+    deployment_id: str | None = None
+    deployment_name: str | None = None
 
     @property
     def artifact_ref(self) -> str:
@@ -95,7 +97,15 @@ def extract_runtime_artifact_claims(
     claims: list[RuntimeArtifactClaim] = []
     warnings: list[str] = []
     seen: set[
-        tuple[str, str, str | None, str | None, str | None]
+        tuple[
+            str,
+            str,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+        ]
     ] = set()
 
     for span in spans:
@@ -152,6 +162,8 @@ def extract_runtime_artifact_claims(
             span.service_instance_id,
             span.deployment_environment,
             span.service_version,
+            span.deployment_id,
+            span.deployment_name,
         )
         if key in seen:
             continue
@@ -169,6 +181,8 @@ def extract_runtime_artifact_claims(
             "digest": digest,
             "source_attribute": source_attribute,
             "container_id": span.container_id,
+            "deployment_id": span.deployment_id,
+            "deployment_name": span.deployment_name,
         }
         evidence = EvidencePointer(
             source_system="opentelemetry",
@@ -193,6 +207,8 @@ def extract_runtime_artifact_claims(
                 observed_at=span.observed_at,
                 source_locator=span.source_locator,
                 evidence=evidence,
+                deployment_id=span.deployment_id,
+                deployment_name=span.deployment_name,
             )
         )
 
@@ -254,6 +270,8 @@ def apply_runtime_artifact_topology(
                     "service.instance.id": claim.service_instance_id,
                     "service.version": claim.service_version,
                     "deployment.environment.name": claim.deployment_environment,
+                    "deployment.id": claim.deployment_id,
+                    "deployment.name": claim.deployment_name,
                     "claim_ceiling": "RUNTIME_OBSERVED_PORTABLE_ARTIFACT_DIGEST",
                 },
             )

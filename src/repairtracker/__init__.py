@@ -20,6 +20,10 @@ from .attestation import (
     parse_verified_slsa_provenance,
 )
 from .case import RepairCase
+from .deployment import (
+    ObservedArtifactDeploymentRecord,
+    apply_artifact_deployment_records,
+)
 from .hostile import HostileReviewRequest, HostileReviewResult, ReviewOutcome
 from .portfolio import RepositoryObservation, bootstrap_portfolio
 from .storage import AppendReceipt, LedgerIntegrityError, SQLiteEventStore, StaleHeadError
@@ -82,6 +86,7 @@ __all__ = [
     "NodeKind",
     "OTelExtractionResult",
     "OTelSpanObservation",
+    "ObservedArtifactDeploymentRecord",
     "PortfolioTopology",
     "RelationDisposition",
     "RelationType",
@@ -103,6 +108,7 @@ __all__ = [
     "TopologyNode",
     "TraceContext",
     "TransitionError",
+    "apply_artifact_deployment_records",
     "apply_otel_service_topology",
     "apply_runtime_artifact_topology",
     "bind_runtime_sources",
