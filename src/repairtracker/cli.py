@@ -214,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
                         {
                             "kind": signal.kind,
                             "repository_id": signal.repository_id,
+                            "repository_stable_id": signal.repository_stable_id,
                             "external_id": signal.external_id,
                             "title": signal.title,
                             "state": signal.state,

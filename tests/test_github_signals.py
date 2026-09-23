@@ -5,6 +5,8 @@ from repairtracker.adapters.github import GitHubReadClient
 
 class SignalTransport:
     def get_json(self, path, query=None):
+        if path == "/repos/acme/app":
+            return {"id": 4242}
         if path == "/repos/acme/app/issues":
             return [
                 {
@@ -66,6 +68,9 @@ class GitHubSignalTests(unittest.TestCase):
         )
         self.assertEqual(result.signals[1].subject_ref, "a" * 40)
         self.assertEqual(result.signals[2].state, "failure")
+        self.assertTrue(
+            all(signal.repository_stable_id == 4242 for signal in result.signals)
+        )
         self.assertTrue(all(signal.payload_digest for signal in result.signals))
 
     def test_successful_workflow_is_not_failure_signal(self):

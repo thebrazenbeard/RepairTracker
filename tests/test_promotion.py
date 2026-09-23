@@ -26,6 +26,7 @@ def signal(**overrides):
         observed_at="2026-09-23T13:30:00+00:00",
         subject_ref="a" * 40,
         payload_digest="b" * 64,
+        repository_stable_id=4242,
     )
     values.update(overrides)
     return GitHubRepairSignal(**values)
@@ -104,6 +105,33 @@ class PromotionTests(unittest.TestCase):
             second.opening_event.event_id,
         )
         self.assertNotEqual(first.opening_event.digest, second.opening_event.digest)
+
+    def test_repository_rename_keeps_stable_signal_identity(self):
+        before = promote_signal(
+            signal(repository_id="acme/app"),
+            policy(),
+        )
+        after = promote_signal(
+            signal(repository_id="renamed-owner/renamed-app"),
+            policy(),
+        )
+        assert before is not None and after is not None
+        self.assertEqual(
+            before.decision.signal_key,
+            "github:repo-id:4242:WORKFLOW_RUN:11",
+        )
+        self.assertEqual(
+            before.repair_case.repair_id,
+            after.repair_case.repair_id,
+        )
+
+    def test_name_fallback_is_explicit_when_stable_id_is_missing(self):
+        fallback = signal(repository_stable_id=None)
+        decision = evaluate_signal(fallback, policy())
+        self.assertEqual(
+            decision.signal_key,
+            "github:repo-name:acme/app:WORKFLOW_RUN:11",
+        )
 
     def test_ambiguous_policy_fails_closed(self):
         ambiguous = SignalPromotionPolicy.from_dict(

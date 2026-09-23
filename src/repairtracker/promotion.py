@@ -159,8 +159,12 @@ class PromotionPersistence:
 
 
 def github_signal_key(signal: GitHubRepairSignal) -> str:
+    if signal.repository_stable_id is not None:
+        repository_identity = f"repo-id:{signal.repository_stable_id}"
+    else:
+        repository_identity = f"repo-name:{signal.repository_id.lower()}"
     return (
-        f"github:{signal.repository_id.lower()}:"
+        f"github:{repository_identity}:"
         f"{signal.kind}:{signal.external_id}"
     )
 
@@ -257,6 +261,7 @@ def promote_signal(
                 "signal_key": decision.signal_key,
                 "kind": signal.kind,
                 "repository_id": signal.repository_id,
+                "repository_stable_id": signal.repository_stable_id,
                 "external_id": signal.external_id,
                 "title": signal.title,
                 "state": signal.state,

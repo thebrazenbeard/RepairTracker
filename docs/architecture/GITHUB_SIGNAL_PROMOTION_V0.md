@@ -59,13 +59,21 @@ Rule ordering therefore never creates hidden priority semantics.
 
 ## Stable identity
 
-GitHub signal identity is:
+GitHub signal identity prefers GitHub's stable numeric repository ID:
 
 ```text
-github:{repository}:{kind}:{external_id}
+github:repo-id:{repository_numeric_id}:{kind}:{external_id}
 ```
 
-Repository identity is normalized case-insensitively for the stable key.
+This survives repository renames.
+
+If GitHub repository metadata does not expose a numeric ID, RepairTracker falls back explicitly to:
+
+```text
+github:repo-name:{lowercase_owner/name}:{kind}:{external_id}
+```
+
+and emits a warning that the fallback is rename-sensitive.
 
 A RepairCase ID and opening event ID are deterministically derived from that stable source identity.
 
