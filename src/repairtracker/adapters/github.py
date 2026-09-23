@@ -11,6 +11,7 @@ from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from repairtracker.model import canonical_digest
+from repairtracker.runtime_binding import RevisionResolution
 from repairtracker.portfolio import (
     MANIFEST_NAMES,
     RepositoryObservation,
@@ -494,6 +495,41 @@ class GitHubReadClient:
         return GitHubSignalResult(
             signals=tuple(signals),
             warnings=tuple(warnings),
+        )
+
+    def resolve_revision(
+        self, full_name: str, revision: str
+    ) -> RevisionResolution:
+        if not _FULL_NAME.fullmatch(full_name):
+            raise ValueError(f"invalid GitHub repository name: {full_name!r}")
+        revision = revision.strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{7,64}", revision):
+            raise ValueError(
+                "exact source binding requires an immutable-looking hex revision"
+            )
+
+        encoded = "/".join(quote(part, safe="") for part in full_name.split("/"))
+        payload = self.transport.get_json(
+            f"/repos/{encoded}/commits/{quote(revision, safe='')}"
+        )
+        sha = payload.get("sha")
+        if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40,64}", sha):
+            raise GitHubReadError(
+                f"GitHub commit response has no usable exact SHA: {full_name}@{revision}"
+            )
+        if not sha.lower().startswith(revision.lower()):
+            raise GitHubReadError(
+                f"GitHub resolved revision does not match requested prefix: "
+                f"{full_name}@{revision}"
+            )
+        observed_at = datetime.now(timezone.utc).isoformat()
+        exact = sha.lower()
+        return RevisionResolution(
+            repository_id=full_name,
+            requested_revision=revision.lower(),
+            resolved_revision=exact,
+            observed_at=observed_at,
+            locator=f"https://github.com/{full_name}/commit/{exact}",
         )
 
     def _repository_default_branch(self, encoded: str, full_name: str) -> str:

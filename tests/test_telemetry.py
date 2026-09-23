@@ -192,6 +192,38 @@ class TelemetryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             apply_otel_service_topology(PortfolioTopology("test"), result.spans)
 
+    def test_otlp_extracts_runtime_source_resource_attributes(self):
+        payload = {
+            "resourceSpans": [
+                {
+                    "resource": {
+                        "attributes": [
+                            {"key": "service.name", "value": {"stringValue": "api"}},
+                            {"key": "service.version", "value": {"stringValue": "1.2.3"}},
+                            {"key": "service.instance.id", "value": {"stringValue": "api-1"}},
+                            {"key": "deployment.environment.name", "value": {"stringValue": "production"}},
+                            {"key": "vcs.repository.url.full", "value": {"stringValue": "https://github.com/acme/app"}},
+                            {"key": "vcs.ref.head.revision", "value": {"stringValue": "abcdef1"}},
+                        ]
+                    },
+                    "scopeSpans": [
+                        {"spans": [{"traceId": "a" * 32, "spanId": "1" * 16, "name": "request"}]}
+                    ],
+                }
+            ]
+        }
+        result = extract_otlp_json_spans(
+            payload,
+            observed_at="2026-09-23T12:00:00+00:00",
+            source_locator="otel://fixture",
+        )
+        span = result.spans[0]
+        self.assertEqual(span.service_version, "1.2.3")
+        self.assertEqual(span.service_instance_id, "api-1")
+        self.assertEqual(span.deployment_environment, "production")
+        self.assertEqual(span.vcs_repository_url, "https://github.com/acme/app")
+        self.assertEqual(span.vcs_revision, "abcdef1")
+
     def test_otlp_missing_service_name_is_warning_not_inference(self):
         result = extract_otlp_json_spans(
             {

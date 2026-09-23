@@ -79,6 +79,13 @@ class AuthenticatedTransport:
         raise AssertionError(f"unexpected GET: {path} {query}")
 
 
+class RevisionTransport:
+    def get_json(self, path, query=None):
+        if path == "/repos/acme/app/commits/abcdef1":
+            return {"sha": "abcdef1" + ("a" * 33)}
+        raise AssertionError(f"unexpected GET: {path} {query}")
+
+
 class GitHubAdapterTests(unittest.TestCase):
     def test_read_client_binds_stable_exact_default_branch_revision(self):
         transport = FakeTransport()
@@ -120,6 +127,21 @@ class GitHubAdapterTests(unittest.TestCase):
         self.assertEqual(transport.calls[0][0], "/user/repos")
         self.assertEqual(transport.calls[0][1]["visibility"], "all")
         self.assertIn("owner", transport.calls[0][1]["affiliation"])
+
+    def test_revision_resolution_returns_exact_repository_commit(self):
+        result = GitHubReadClient(
+            transport=RevisionTransport()
+        ).resolve_revision("acme/app", "abcdef1")
+        self.assertEqual(result.repository_id, "acme/app")
+        self.assertEqual(result.requested_revision, "abcdef1")
+        self.assertEqual(result.resolved_revision, "abcdef1" + ("a" * 33))
+
+    def test_symbolic_revision_is_rejected_before_transport(self):
+        transport = RevisionTransport()
+        with self.assertRaises(ValueError):
+            GitHubReadClient(transport=transport).resolve_revision(
+                "acme/app", "main"
+            )
 
     def test_invalid_repo_name_fails_before_transport(self):
         transport = FakeTransport()

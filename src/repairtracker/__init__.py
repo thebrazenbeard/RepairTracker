@@ -10,6 +10,14 @@ from .case import RepairCase
 from .hostile import HostileReviewRequest, HostileReviewResult, ReviewOutcome
 from .portfolio import RepositoryObservation, bootstrap_portfolio
 from .storage import AppendReceipt, LedgerIntegrityError, SQLiteEventStore, StaleHeadError
+from .runtime_binding import (
+    RevisionResolution,
+    RuntimeBindingResult,
+    RuntimeSourceClaim,
+    bind_runtime_sources,
+    extract_runtime_source_claims,
+    github_repository_id_from_url,
+)
 from .telemetry import (
     OTelExtractionResult,
     OTelSpanObservation,
@@ -67,6 +75,9 @@ __all__ = [
     "RepairEvent",
     "RepositoryObservation",
     "ReviewOutcome",
+    "RevisionResolution",
+    "RuntimeBindingResult",
+    "RuntimeSourceClaim",
     "SQLiteEventStore",
     "Severity",
     "StaleHeadError",
@@ -75,7 +86,10 @@ __all__ = [
     "TraceContext",
     "TransitionError",
     "apply_otel_service_topology",
+    "bind_runtime_sources",
     "bootstrap_portfolio",
     "extract_otlp_json_spans",
+    "extract_runtime_source_claims",
+    "github_repository_id_from_url",
     "repair_event_to_otel_event",
 ]

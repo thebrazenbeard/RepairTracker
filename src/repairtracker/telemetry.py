@@ -73,6 +73,11 @@ class OTelSpanObservation:
     span_name: str
     observed_at: str
     source_locator: str
+    service_version: str | None = None
+    service_instance_id: str | None = None
+    deployment_environment: str | None = None
+    vcs_repository_url: str | None = None
+    vcs_revision: str | None = None
 
     def __post_init__(self) -> None:
         if not _TRACE_ID.fullmatch(self.trace_id) or set(self.trace_id) == {"0"}:
@@ -146,6 +151,11 @@ def extract_otlp_json_spans(
         )
         service_name = resource_attrs.get("service.name")
         namespace = resource_attrs.get("service.namespace")
+        service_version = resource_attrs.get("service.version")
+        service_instance_id = resource_attrs.get("service.instance.id")
+        deployment_environment = resource_attrs.get("deployment.environment.name")
+        vcs_repository_url = resource_attrs.get("vcs.repository.url.full")
+        vcs_revision = resource_attrs.get("vcs.ref.head.revision")
         if not isinstance(service_name, str) or not service_name.strip():
             warnings.append(
                 f"resourceSpans[{resource_index}] missing service.name; spans skipped"
@@ -156,6 +166,15 @@ def extract_otlp_json_spans(
             namespace = namespace.strip() or None
         else:
             namespace = None
+
+        def optional_text(value: Any) -> str | None:
+            return value.strip() if isinstance(value, str) and value.strip() else None
+
+        service_version = optional_text(service_version)
+        service_instance_id = optional_text(service_instance_id)
+        deployment_environment = optional_text(deployment_environment)
+        vcs_repository_url = optional_text(vcs_repository_url)
+        vcs_revision = optional_text(vcs_revision)
 
         scope_spans = resource_group.get("scopeSpans", [])
         if not isinstance(scope_spans, list):
@@ -197,6 +216,11 @@ def extract_otlp_json_spans(
                             span_name=span_name,
                             observed_at=observed_at,
                             source_locator=source_locator,
+                            service_version=service_version,
+                            service_instance_id=service_instance_id,
+                            deployment_environment=deployment_environment,
+                            vcs_repository_url=vcs_repository_url,
+                            vcs_revision=vcs_revision,
                         )
                     )
                 except ValueError as exc:
