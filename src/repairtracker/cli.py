@@ -64,6 +64,19 @@ def _parser() -> argparse.ArgumentParser:
     github_signals.add_argument("--max-items-per-kind", type=int, default=200)
     github_signals.add_argument("--token-env", default="GITHUB_TOKEN")
 
+    github_attestations = sub.add_parser(
+        "github-attestations",
+        help=(
+            "locate GitHub artifact attestations without treating listing as "
+            "cryptographic verification"
+        ),
+    )
+    github_attestations.add_argument("repository")
+    github_attestations.add_argument("subject_digest")
+    github_attestations.add_argument("--predicate-type", default="provenance")
+    github_attestations.add_argument("--max-results", type=int, default=100)
+    github_attestations.add_argument("--token-env", default="GITHUB_TOKEN")
+
     hostile = sub.add_parser(
         "hostile-template", help="emit hostile-review attack prompts"
     )
@@ -169,6 +182,37 @@ def main(argv: list[str] | None = None) -> int:
                             "payload_digest": signal.payload_digest,
                         }
                         for signal in result.signals
+                    ],
+                    "warnings": list(result.warnings),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command == "github-attestations":
+        token = os.environ.get(args.token_env)
+        client = GitHubReadClient(token=token)
+        result = client.list_attestations(
+            args.repository,
+            args.subject_digest,
+            predicate_type=args.predicate_type,
+            max_results=args.max_results,
+        )
+        print(
+            json.dumps(
+                {
+                    "schema": "REPAIRTRACKER_GITHUB_ATTESTATION_INDEX_V0",
+                    "cryptographically_verified": False,
+                    "references": [
+                        {
+                            "repository_id": item.repository_id,
+                            "subject_digest": item.subject_digest,
+                            "bundle_url": item.bundle_url,
+                            "initiator": item.initiator,
+                        }
+                        for item in result.references
                     ],
                     "warnings": list(result.warnings),
                 },

@@ -52,6 +52,20 @@ class GitHubSignalResult:
     warnings: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class GitHubAttestationReference:
+    repository_id: str
+    subject_digest: str
+    bundle_url: str
+    initiator: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class GitHubAttestationIndexResult:
+    references: tuple[GitHubAttestationReference, ...]
+    warnings: tuple[str, ...] = ()
+
+
 class JSONTransport(Protocol):
     def get_json(self, path: str, query: dict[str, str] | None = None) -> Any: ...
 
@@ -530,6 +544,72 @@ class GitHubReadClient:
             resolved_revision=exact,
             observed_at=observed_at,
             locator=f"https://github.com/{full_name}/commit/{exact}",
+        )
+
+    def list_attestations(
+        self,
+        full_name: str,
+        subject_digest: str,
+        *,
+        predicate_type: str = "provenance",
+        max_results: int = 100,
+    ) -> GitHubAttestationIndexResult:
+        """Locate repository attestations without claiming cryptographic verification."""
+
+        if not _FULL_NAME.fullmatch(full_name):
+            raise ValueError(f"invalid GitHub repository name: {full_name!r}")
+        if not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", subject_digest):
+            raise ValueError("subject_digest must be sha256: followed by 64 hex chars")
+        if not predicate_type.strip():
+            raise ValueError("predicate_type is required")
+        if not 1 <= max_results <= 100:
+            raise ValueError("max_results must be between 1 and 100")
+
+        encoded = "/".join(quote(part, safe="") for part in full_name.split("/"))
+        digest = subject_digest.lower()
+        payload = self.transport.get_json(
+            f"/repos/{encoded}/attestations/{quote(digest, safe=':')}",
+            {
+                "per_page": str(max_results),
+                "predicate_type": predicate_type,
+            },
+        )
+        if not isinstance(payload, dict):
+            raise GitHubReadError(
+                f"invalid attestation-index response for {full_name}"
+            )
+        raw = payload.get("attestations", [])
+        if not isinstance(raw, list):
+            raise GitHubReadError(
+                f"invalid attestation collection for {full_name}"
+            )
+
+        references: list[GitHubAttestationReference] = []
+        for item in raw[:max_results]:
+            if not isinstance(item, dict):
+                continue
+            bundle_url = item.get("bundle_url")
+            if not isinstance(bundle_url, str) or not bundle_url.startswith("https://"):
+                continue
+            initiator = item.get("initiator")
+            references.append(
+                GitHubAttestationReference(
+                    repository_id=full_name,
+                    subject_digest=digest,
+                    bundle_url=bundle_url,
+                    initiator=initiator if isinstance(initiator, str) else None,
+                )
+            )
+
+        warnings: list[str] = []
+        if len(raw) >= max_results:
+            warnings.append(
+                "attestation result ceiling reached; additional attestations "
+                "may exist because V0 transport does not expose cursor headers"
+            )
+        return GitHubAttestationIndexResult(
+            references=tuple(references),
+            warnings=tuple(warnings),
         )
 
     def _repository_default_branch(self, encoded: str, full_name: str) -> str:
