@@ -46,6 +46,16 @@ def _parser() -> argparse.ArgumentParser:
     portfolio_owner.add_argument("--include-forks", action="store_true")
     portfolio_owner.add_argument("--token-env", default="GITHUB_TOKEN")
 
+    portfolio_authenticated = sub.add_parser(
+        "portfolio-github-authenticated",
+        help="discover repositories visible to the authenticated GitHub identity",
+    )
+    portfolio_authenticated.add_argument("--portfolio-id", default="authenticated")
+    portfolio_authenticated.add_argument("--max-repositories", type=int, default=200)
+    portfolio_authenticated.add_argument("--include-archived", action="store_true")
+    portfolio_authenticated.add_argument("--include-forks", action="store_true")
+    portfolio_authenticated.add_argument("--token-env", default="GITHUB_TOKEN")
+
     github_signals = sub.add_parser(
         "github-signals",
         help="read bounded GitHub candidate repair signals without incident promotion",
@@ -110,6 +120,26 @@ def main(argv: list[str] | None = None) -> int:
         topology = bootstrap_portfolio(
             observations,
             portfolio_id=args.portfolio_id or args.owner,
+        )
+        topology.warnings.extend(warnings)
+        print(json.dumps(topology.to_dict(), indent=2, sort_keys=True))
+        return 0
+
+    if args.command == "portfolio-github-authenticated":
+        token = os.environ.get(args.token_env)
+        if not token:
+            raise SystemExit(
+                f"{args.token_env} is required for authenticated portfolio discovery"
+            )
+        client = GitHubReadClient(token=token)
+        observations, warnings = client.observe_authenticated_portfolio(
+            include_archived=args.include_archived,
+            include_forks=args.include_forks,
+            max_repositories=args.max_repositories,
+        )
+        topology = bootstrap_portfolio(
+            observations,
+            portfolio_id=args.portfolio_id,
         )
         topology.warnings.extend(warnings)
         print(json.dumps(topology.to_dict(), indent=2, sort_keys=True))

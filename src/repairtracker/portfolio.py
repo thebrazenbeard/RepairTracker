@@ -593,12 +593,13 @@ def bootstrap_portfolio(
                 target_id=target_repo_id,
                 relation=RelationType.DEPENDS_ON,
                 disposition=RelationDisposition.INFERRED,
-                confidence=0.85,
+                confidence=None,
                 evidence=(declaration_evidence, provider_evidence),
                 inference_rule="unique-package-provider-match",
                 attributes={
                     "package_id": package_id,
                     "scope": dependency.scope,
+                    "confidence_basis": "UNCALIBRATED_STRUCTURAL_HEURISTIC",
                 },
             )
             topology.add_edge(edge)

@@ -95,7 +95,7 @@ V0 currently infers `DEPENDS_ON` only when a manifest dependency package has exa
 
 `GitHubReadClient` is a read-only adapter.
 
-RepairTracker can either observe explicitly selected repositories or enumerate a bounded GitHub user/organization portfolio. Owner enumeration is paginated at up to 100 repositories per request, filters archived repositories and forks by default, and returns a completeness warning if its configured repository ceiling is reached.
+RepairTracker can observe explicitly selected repositories, enumerate a bounded public GitHub user/organization portfolio, or enumerate repositories visible to the authenticated GitHub identity through the authenticated-user repository endpoint. Owner enumeration is paginated at up to 100 repositories per request, filters archived repositories and forks by default, and returns a completeness warning if its configured repository ceiling is reached.
 
 For each selected repository it:
 
@@ -126,7 +126,9 @@ V0 parses without executing repository code:
 
 The parser extracts package identities and declared dependencies.
 
-Name matching is intentionally conservative. A unique package-provider match produces an inferred repository dependency with confidence below 1.0 and keeps both source observations attached.
+Name matching is intentionally conservative. A unique package-provider match produces an inferred repository dependency and keeps both source observations attached.
+
+The heuristic does not emit a numeric confidence because it has not been empirically calibrated. Its `confidence` remains null and its attributes identify `UNCALIBRATED_STRUCTURAL_HEURISTIC` as the confidence basis. This avoids presenting an invented decimal as a measured probability.
 
 ## OpenTelemetry correlation
 

@@ -65,6 +65,20 @@ class OwnerTransport:
         raise AssertionError(f"unexpected GET: {path} {query}")
 
 
+class AuthenticatedTransport:
+    def __init__(self):
+        self.calls = []
+
+    def get_json(self, path, query=None):
+        self.calls.append((path, query))
+        if path == "/user/repos":
+            return [
+                {"full_name": "acme/private", "archived": False, "fork": False},
+                {"full_name": "acme/fork", "archived": False, "fork": True},
+            ]
+        raise AssertionError(f"unexpected GET: {path} {query}")
+
+
 class GitHubAdapterTests(unittest.TestCase):
     def test_read_client_binds_stable_exact_default_branch_revision(self):
         transport = FakeTransport()
@@ -96,6 +110,16 @@ class GitHubAdapterTests(unittest.TestCase):
         self.assertEqual(result.warnings, ())
         self.assertEqual(transport.calls[0][0], "/users/acme/repos")
         self.assertEqual(transport.calls[0][1]["per_page"], "100")
+
+    def test_authenticated_discovery_uses_user_repositories_endpoint(self):
+        transport = AuthenticatedTransport()
+        result = GitHubReadClient(
+            transport=transport
+        ).list_authenticated_repositories(max_repositories=10)
+        self.assertEqual(result.repositories, ("acme/private",))
+        self.assertEqual(transport.calls[0][0], "/user/repos")
+        self.assertEqual(transport.calls[0][1]["visibility"], "all")
+        self.assertIn("owner", transport.calls[0][1]["affiliation"])
 
     def test_invalid_repo_name_fails_before_transport(self):
         transport = FakeTransport()

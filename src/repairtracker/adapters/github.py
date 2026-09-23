@@ -81,6 +81,7 @@ class UrllibGitHubReadTransport:
             path.startswith("/repos/")
             or re.fullmatch(r"/users/[A-Za-z0-9_.-]+/repos", path)
             or re.fullmatch(r"/orgs/[A-Za-z0-9_.-]+/repos", path)
+            or path == "/user/repos"
         )
         if not allowed:
             raise ValueError(
@@ -192,6 +193,87 @@ class GitHubReadClient:
             repositories=tuple(repositories),
             warnings=tuple(warnings),
         )
+
+    def list_authenticated_repositories(
+        self,
+        *,
+        include_archived: bool = False,
+        include_forks: bool = False,
+        max_repositories: int = 200,
+    ) -> OwnerDiscoveryResult:
+        if max_repositories < 1:
+            raise ValueError("max_repositories must be positive")
+
+        repositories: list[str] = []
+        warnings: list[str] = []
+        for page in range(1, 101):
+            payload = self.transport.get_json(
+                "/user/repos",
+                {
+                    "per_page": "100",
+                    "page": str(page),
+                    "visibility": "all",
+                    "affiliation": "owner,collaborator,organization_member",
+                    "sort": "full_name",
+                    "direction": "asc",
+                },
+            )
+            if not isinstance(payload, list):
+                raise GitHubReadError(
+                    "invalid authenticated repository-list response"
+                )
+            for item in payload:
+                if not isinstance(item, dict):
+                    continue
+                full_name = item.get("full_name")
+                if not isinstance(full_name, str) or not _FULL_NAME.fullmatch(full_name):
+                    continue
+                if item.get("archived") is True and not include_archived:
+                    continue
+                if item.get("fork") is True and not include_forks:
+                    continue
+                repositories.append(full_name)
+                if len(repositories) >= max_repositories:
+                    warnings.append(
+                        "authenticated repository discovery limit reached; "
+                        "result may be incomplete"
+                    )
+                    return OwnerDiscoveryResult(
+                        repositories=tuple(repositories),
+                        warnings=tuple(warnings),
+                    )
+            if len(payload) < 100:
+                return OwnerDiscoveryResult(
+                    repositories=tuple(repositories),
+                    warnings=tuple(warnings),
+                )
+
+        warnings.append(
+            "authenticated repository pagination ceiling reached; "
+            "result may be incomplete"
+        )
+        return OwnerDiscoveryResult(
+            repositories=tuple(repositories),
+            warnings=tuple(warnings),
+        )
+
+    def observe_authenticated_portfolio(
+        self,
+        *,
+        include_archived: bool = False,
+        include_forks: bool = False,
+        max_repositories: int = 200,
+    ) -> tuple[tuple[RepositoryObservation, ...], tuple[str, ...]]:
+        discovery = self.list_authenticated_repositories(
+            include_archived=include_archived,
+            include_forks=include_forks,
+            max_repositories=max_repositories,
+        )
+        observations = tuple(
+            self.observe_repository(repository)
+            for repository in discovery.repositories
+        )
+        return observations, discovery.warnings
 
     def observe_owner_portfolio(
         self,

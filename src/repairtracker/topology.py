@@ -86,15 +86,23 @@ class TopologyEdge:
     target_id: str
     relation: RelationType
     disposition: RelationDisposition
-    confidence: float
+    confidence: float | None
     evidence: tuple[EvidencePointer, ...] = ()
     inference_rule: str | None = None
     verification_ref: str | None = None
     attributes: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not 0.0 <= self.confidence <= 1.0:
+        if self.confidence is not None and not 0.0 <= self.confidence <= 1.0:
             raise ValueError("edge confidence must be between 0 and 1")
+        if (
+            self.disposition in {
+                RelationDisposition.OBSERVED,
+                RelationDisposition.VERIFIED,
+            }
+            and self.confidence is None
+        ):
+            raise ValueError("observed/verified topology edges require confidence")
         if self.disposition is RelationDisposition.INFERRED and not self.inference_rule:
             raise ValueError("inferred topology edges require an inference_rule")
         if self.disposition in {

@@ -56,7 +56,11 @@ class PortfolioTests(unittest.TestCase):
         self.assertEqual(edge.target_id, "repo:acme/lib")
         self.assertEqual(edge.disposition, RelationDisposition.INFERRED)
         self.assertEqual(edge.inference_rule, "unique-package-provider-match")
-        self.assertLess(edge.confidence, 1.0)
+        self.assertIsNone(edge.confidence)
+        self.assertEqual(
+            edge.attributes["confidence_basis"],
+            "UNCALIBRATED_STRUCTURAL_HEURISTIC",
+        )
         self.assertEqual(len(edge.evidence), 2)
 
         declared = [
