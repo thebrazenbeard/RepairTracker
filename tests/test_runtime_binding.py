@@ -122,6 +122,42 @@ class RuntimeBindingTests(unittest.TestCase):
             )
         )
 
+    def test_rebinding_same_claim_merges_evidence_without_collision(self):
+        repo = RepositoryObservation(
+            repository_id="acme/app",
+            default_branch="main",
+            revision="f" * 40,
+            observed_at="2026-09-23T12:00:00+00:00",
+            source_system="fixture",
+            source_locator="fixture://acme/app",
+            files={},
+        )
+        topology = bootstrap_portfolio((repo,), portfolio_id="acme")
+        first = span()
+        second = OTelSpanObservation(
+            trace_id="3" * 32,
+            span_id="4" * 16,
+            parent_span_id=None,
+            service_name=first.service_name,
+            service_namespace=first.service_namespace,
+            span_name=first.span_name,
+            observed_at="2026-09-23T12:01:00+00:00",
+            source_locator="otel://fixture-two",
+            service_version=first.service_version,
+            service_instance_id=first.service_instance_id,
+            deployment_environment=first.deployment_environment,
+            vcs_repository_url=first.vcs_repository_url,
+            vcs_revision=first.vcs_revision,
+        )
+        bind_runtime_sources(topology, (first,), FakeResolver())
+        bind_runtime_sources(topology, (second,), FakeResolver())
+        reports = [
+            edge for edge in topology.edges.values()
+            if edge.relation is RelationType.REPORTS_SOURCE
+        ]
+        self.assertEqual(len(reports), 1)
+        self.assertEqual(len(reports[0].evidence), 2)
+
     def test_repository_outside_portfolio_is_not_silently_added(self):
         topology = bootstrap_portfolio((), portfolio_id="empty")
         result = bind_runtime_sources(topology, (span(),), FakeResolver())

@@ -181,9 +181,40 @@ class PortfolioTopology:
         if edge.target_id not in self.nodes:
             raise ValueError(f"unknown topology target node: {edge.target_id}")
         existing = self.edges.get(edge.edge_id)
-        if existing is not None and existing != edge:
+        if existing is None:
+            self.edges[edge.edge_id] = edge
+            return
+        if existing == edge:
+            return
+
+        same_semantics = (
+            existing.source_id == edge.source_id
+            and existing.target_id == edge.target_id
+            and existing.relation == edge.relation
+            and existing.disposition == edge.disposition
+            and existing.confidence == edge.confidence
+            and existing.inference_rule == edge.inference_rule
+            and existing.verification_ref == edge.verification_ref
+            and existing.attributes == edge.attributes
+        )
+        if not same_semantics:
             raise ValueError(f"topology edge collision: {edge.edge_id}")
-        self.edges[edge.edge_id] = edge
+
+        merged_evidence = tuple(
+            dict.fromkeys((*existing.evidence, *edge.evidence))
+        )
+        self.edges[edge.edge_id] = TopologyEdge(
+            edge_id=existing.edge_id,
+            source_id=existing.source_id,
+            target_id=existing.target_id,
+            relation=existing.relation,
+            disposition=existing.disposition,
+            confidence=existing.confidence,
+            evidence=merged_evidence,
+            inference_rule=existing.inference_rule,
+            verification_ref=existing.verification_ref,
+            attributes=existing.attributes,
+        )
 
     def bind_currentness(self, evidence: CurrentnessEvidence) -> None:
         existing = self.currentness.get(evidence.subject_id)

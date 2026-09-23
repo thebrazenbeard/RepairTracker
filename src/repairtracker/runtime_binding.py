@@ -94,7 +94,9 @@ def extract_runtime_source_claims(
 ) -> tuple[tuple[RuntimeSourceClaim, ...], tuple[str, ...]]:
     claims: list[RuntimeSourceClaim] = []
     warnings: list[str] = []
-    seen: set[tuple[str, str, str, str | None, str | None]] = set()
+    seen: set[
+        tuple[str, str, str, str | None, str | None, str | None]
+    ] = set()
 
     for span in spans:
         if span.vcs_repository_url is None and span.vcs_revision is None:
@@ -126,6 +128,7 @@ def extract_runtime_source_claims(
             span.vcs_revision.lower(),
             span.service_instance_id,
             span.deployment_environment,
+            span.service_version,
         )
         if key in seen:
             continue
@@ -253,6 +256,7 @@ def bind_runtime_sources(
                     discriminator=(
                         f"{claim.service_instance_id or ''}:"
                         f"{claim.deployment_environment or ''}:"
+                        f"{claim.service_version or ''}:"
                         f"{claim.claimed_revision}"
                     ),
                 ),
