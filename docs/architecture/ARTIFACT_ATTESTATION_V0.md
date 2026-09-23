@@ -71,6 +71,8 @@ The output explicitly reports:
 
 RepairTracker does not fetch an arbitrary returned bundle URL or upgrade the listing into verified provenance.
 
+A GitHub 404 at the attestation-subject endpoint is preserved as ambiguous: it may mean no matching attestation or an inaccessible resource. RepairTracker therefore returns no references plus an incompleteness warning rather than claiming a complete empty set.
+
 GitHub documents that meaningful security requires cryptographic signature/timestamp verification and signer identity validation; listing an attestation is insufficient.
 
 ## Cryptographic verification

@@ -7,6 +7,7 @@ import json
 import os
 import re
 from typing import Any, Protocol
+from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
@@ -24,7 +25,9 @@ _FULL_NAME = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 class GitHubReadError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +121,11 @@ class UrllibGitHubReadTransport:
         try:
             with urlopen(request, timeout=self._timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            raise GitHubReadError(
+                f"GitHub GET failed for {path}: {exc}",
+                status_code=exc.code,
+            ) from exc
         except Exception as exc:
             raise GitHubReadError(f"GitHub GET failed for {path}: {exc}") from exc
 
@@ -567,13 +575,25 @@ class GitHubReadClient:
 
         encoded = "/".join(quote(part, safe="") for part in full_name.split("/"))
         digest = subject_digest.lower()
-        payload = self.transport.get_json(
-            f"/repos/{encoded}/attestations/{quote(digest, safe=':')}",
-            {
-                "per_page": str(max_results),
-                "predicate_type": predicate_type,
-            },
-        )
+        try:
+            payload = self.transport.get_json(
+                f"/repos/{encoded}/attestations/{quote(digest, safe=':')}",
+                {
+                    "per_page": str(max_results),
+                    "predicate_type": predicate_type,
+                },
+            )
+        except GitHubReadError as exc:
+            if exc.status_code == 404:
+                return GitHubAttestationIndexResult(
+                    references=(),
+                    warnings=(
+                        "GitHub returned 404 for the attestation subject; this "
+                        "may mean no matching attestation or an inaccessible "
+                        "resource, so completeness is unknown",
+                    ),
+                )
+            raise
         if not isinstance(payload, dict):
             raise GitHubReadError(
                 f"invalid attestation-index response for {full_name}"
