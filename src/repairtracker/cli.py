@@ -46,6 +46,14 @@ def _parser() -> argparse.ArgumentParser:
     portfolio_owner.add_argument("--include-forks", action="store_true")
     portfolio_owner.add_argument("--token-env", default="GITHUB_TOKEN")
 
+    github_signals = sub.add_parser(
+        "github-signals",
+        help="read bounded GitHub candidate repair signals without incident promotion",
+    )
+    github_signals.add_argument("repository")
+    github_signals.add_argument("--max-items-per-kind", type=int, default=200)
+    github_signals.add_argument("--token-env", default="GITHUB_TOKEN")
+
     hostile = sub.add_parser(
         "hostile-template", help="emit hostile-review attack prompts"
     )
@@ -105,6 +113,39 @@ def main(argv: list[str] | None = None) -> int:
         )
         topology.warnings.extend(warnings)
         print(json.dumps(topology.to_dict(), indent=2, sort_keys=True))
+        return 0
+
+    if args.command == "github-signals":
+        token = os.environ.get(args.token_env)
+        client = GitHubReadClient(token=token)
+        result = client.observe_repair_signals(
+            args.repository,
+            max_items_per_kind=args.max_items_per_kind,
+        )
+        print(
+            json.dumps(
+                {
+                    "schema": "REPAIRTRACKER_GITHUB_SIGNALS_V0",
+                    "signals": [
+                        {
+                            "kind": signal.kind,
+                            "repository_id": signal.repository_id,
+                            "external_id": signal.external_id,
+                            "title": signal.title,
+                            "state": signal.state,
+                            "locator": signal.locator,
+                            "observed_at": signal.observed_at,
+                            "subject_ref": signal.subject_ref,
+                            "payload_digest": signal.payload_digest,
+                        }
+                        for signal in result.signals
+                    ],
+                    "warnings": list(result.warnings),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
 
     if args.command == "hostile-template":

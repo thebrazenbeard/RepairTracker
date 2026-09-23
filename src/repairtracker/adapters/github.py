@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from repairtracker.model import canonical_digest
 from repairtracker.portfolio import (
     MANIFEST_NAMES,
     RepositoryObservation,
@@ -28,6 +29,25 @@ class GitHubReadError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class OwnerDiscoveryResult:
     repositories: tuple[str, ...]
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class GitHubRepairSignal:
+    kind: str
+    repository_id: str
+    external_id: str
+    title: str
+    state: str
+    locator: str
+    observed_at: str
+    subject_ref: str | None
+    payload_digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class GitHubSignalResult:
+    signals: tuple[GitHubRepairSignal, ...]
     warnings: tuple[str, ...] = ()
 
 
@@ -194,6 +214,205 @@ class GitHubReadClient:
             for repository in discovery.repositories
         )
         return observations, discovery.warnings
+
+    def _list_bounded(
+        self,
+        path: str,
+        *,
+        base_query: dict[str, str],
+        max_items: int,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        if max_items < 1:
+            raise ValueError("max_items must be positive")
+        items: list[dict[str, Any]] = []
+        for page in range(1, 101):
+            query = {**base_query, "per_page": "100", "page": str(page)}
+            payload = self.transport.get_json(path, query)
+            if not isinstance(payload, list):
+                raise GitHubReadError(f"invalid list response for {path}")
+            for item in payload:
+                if isinstance(item, dict):
+                    items.append(item)
+                    if len(items) >= max_items:
+                        return items, True
+            if len(payload) < 100:
+                return items, False
+        return items, True
+
+    def observe_repair_signals(
+        self,
+        full_name: str,
+        *,
+        max_items_per_kind: int = 200,
+    ) -> GitHubSignalResult:
+        """Read candidate repair signals without promoting them to incidents."""
+
+        if not _FULL_NAME.fullmatch(full_name):
+            raise ValueError(f"invalid GitHub repository name: {full_name!r}")
+        encoded = "/".join(quote(part, safe="") for part in full_name.split("/"))
+        observed_at = datetime.now(timezone.utc).isoformat()
+        warnings: list[str] = []
+        signals: list[GitHubRepairSignal] = []
+
+        issues, issue_limited = self._list_bounded(
+            f"/repos/{encoded}/issues",
+            base_query={"state": "open", "sort": "updated", "direction": "desc"},
+            max_items=max_items_per_kind,
+        )
+        if issue_limited:
+            warnings.append("issue signal limit reached; result may be incomplete")
+        for item in issues:
+            if "pull_request" in item:
+                continue
+            number = item.get("number")
+            title = item.get("title")
+            html_url = item.get("html_url")
+            if not isinstance(number, int) or not isinstance(title, str):
+                continue
+            locator = (
+                html_url
+                if isinstance(html_url, str)
+                else f"https://github.com/{full_name}/issues/{number}"
+            )
+            signals.append(
+                GitHubRepairSignal(
+                    kind="ISSUE",
+                    repository_id=full_name,
+                    external_id=str(number),
+                    title=title,
+                    state=str(item.get("state") or "open"),
+                    locator=locator,
+                    observed_at=observed_at,
+                    subject_ref=None,
+                    payload_digest=canonical_digest(
+                        {
+                            "number": number,
+                            "title": title,
+                            "state": item.get("state"),
+                            "updated_at": item.get("updated_at"),
+                        }
+                    ),
+                )
+            )
+
+        pulls, pull_limited = self._list_bounded(
+            f"/repos/{encoded}/pulls",
+            base_query={"state": "open", "sort": "updated", "direction": "desc"},
+            max_items=max_items_per_kind,
+        )
+        if pull_limited:
+            warnings.append("pull-request signal limit reached; result may be incomplete")
+        for item in pulls:
+            number = item.get("number")
+            title = item.get("title")
+            html_url = item.get("html_url")
+            head = item.get("head", {})
+            head_sha = head.get("sha") if isinstance(head, dict) else None
+            if not isinstance(number, int) or not isinstance(title, str):
+                continue
+            locator = (
+                html_url
+                if isinstance(html_url, str)
+                else f"https://github.com/{full_name}/pull/{number}"
+            )
+            signals.append(
+                GitHubRepairSignal(
+                    kind="PULL_REQUEST",
+                    repository_id=full_name,
+                    external_id=str(number),
+                    title=title,
+                    state=str(item.get("state") or "open"),
+                    locator=locator,
+                    observed_at=observed_at,
+                    subject_ref=head_sha if isinstance(head_sha, str) else None,
+                    payload_digest=canonical_digest(
+                        {
+                            "number": number,
+                            "title": title,
+                            "state": item.get("state"),
+                            "head_sha": head_sha,
+                            "updated_at": item.get("updated_at"),
+                        }
+                    ),
+                )
+            )
+
+        workflow_items: list[dict[str, Any]] = []
+        workflow_limited = False
+        for page in range(1, 101):
+            payload = self.transport.get_json(
+                f"/repos/{encoded}/actions/runs",
+                {"per_page": "100", "page": str(page)},
+            )
+            if not isinstance(payload, dict):
+                raise GitHubReadError(
+                    f"invalid workflow-runs response for {full_name}"
+                )
+            raw_runs = payload.get("workflow_runs", [])
+            if not isinstance(raw_runs, list):
+                raise GitHubReadError(
+                    f"invalid workflow-runs response for {full_name}"
+                )
+            for item in raw_runs:
+                if isinstance(item, dict):
+                    workflow_items.append(item)
+                    if len(workflow_items) >= max_items_per_kind:
+                        workflow_limited = True
+                        break
+            if workflow_limited or len(raw_runs) < 100:
+                break
+        if workflow_limited:
+            warnings.append("workflow-run signal limit reached; result may be incomplete")
+
+        failure_conclusions = {
+            "failure",
+            "cancelled",
+            "timed_out",
+            "action_required",
+            "startup_failure",
+        }
+        for item in workflow_items:
+            conclusion = item.get("conclusion")
+            if conclusion not in failure_conclusions:
+                continue
+            run_id = item.get("id")
+            name = item.get("name") or item.get("display_title")
+            html_url = item.get("html_url")
+            head_sha = item.get("head_sha")
+            if not isinstance(run_id, int) or not isinstance(name, str):
+                continue
+            locator = (
+                html_url
+                if isinstance(html_url, str)
+                else f"https://github.com/{full_name}/actions/runs/{run_id}"
+            )
+            signals.append(
+                GitHubRepairSignal(
+                    kind="WORKFLOW_RUN",
+                    repository_id=full_name,
+                    external_id=str(run_id),
+                    title=name,
+                    state=str(conclusion),
+                    locator=locator,
+                    observed_at=observed_at,
+                    subject_ref=head_sha if isinstance(head_sha, str) else None,
+                    payload_digest=canonical_digest(
+                        {
+                            "id": run_id,
+                            "name": name,
+                            "conclusion": conclusion,
+                            "head_sha": head_sha,
+                            "event": item.get("event"),
+                            "updated_at": item.get("updated_at"),
+                        }
+                    ),
+                )
+            )
+
+        return GitHubSignalResult(
+            signals=tuple(signals),
+            warnings=tuple(warnings),
+        )
 
     def _repository_default_branch(self, encoded: str, full_name: str) -> str:
         repo = self.transport.get_json(f"/repos/{encoded}")

@@ -46,3 +46,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: repairtracker portfolio-github ${{ github.repository }} --portfolio-id self-github > repairtracker-github-portfolio.json
+      - name: Live read-only GitHub repair-signal ingestion
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: repairtracker github-signals ${{ github.repository }} --max-items-per-kind 50 > repairtracker-github-signals.json
