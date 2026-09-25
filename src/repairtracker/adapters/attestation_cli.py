@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+from pathlib import Path
 import re
 import subprocess
 from typing import Callable
@@ -54,6 +55,8 @@ class GitHubCLIAttestationVerifier:
         timeout: float = 90.0,
         runner: CommandRunner | None = None,
     ) -> None:
+        if timeout <= 0:
+            raise ValueError("timeout must be positive")
         self.gh_executable = gh_executable
         self.timeout = timeout
         self.runner = runner or _run_command
@@ -66,7 +69,7 @@ class GitHubCLIAttestationVerifier:
         repository_id: str,
         source_revision: str,
         signer_workflow: str | None = None,
-        deny_self_hosted_runners: bool = False,
+        deny_self_hosted_runners: bool = True,
         bundle_from_oci: bool = False,
     ) -> tuple[AttestationVerificationReceipt, ...]:
         artifact_name = artifact_name.strip()
@@ -74,6 +77,7 @@ class GitHubCLIAttestationVerifier:
         if (
             not artifact_name
             or artifact_name.startswith("oci://")
+            or artifact_name.startswith("-")
             or "@" in artifact_name
             or "?" in artifact_name
             or "#" in artifact_name
@@ -82,18 +86,89 @@ class GitHubCLIAttestationVerifier:
         ):
             raise ValueError(
                 "artifact_name must be an immutable-target OCI image name "
-                "without scheme, tag, or digest"
+                "without scheme, tag, digest, or option prefix"
             )
+        self._validate_common(
+            sha256_digest=sha256_digest,
+            repository_id=repository_id,
+            source_revision=source_revision,
+        )
+        artifact_ref = (
+            f"oci://{artifact_name}@sha256:{sha256_digest.lower()}"
+        )
+        return self._verify_reference(
+            artifact_ref=artifact_ref,
+            sha256_digest=sha256_digest,
+            repository_id=repository_id,
+            source_revision=source_revision,
+            signer_workflow=signer_workflow,
+            deny_self_hosted_runners=deny_self_hosted_runners,
+            bundle_from_oci=bundle_from_oci,
+        )
+
+    def verify_file(
+        self,
+        *,
+        artifact_path: str,
+        sha256_digest: str,
+        repository_id: str,
+        source_revision: str,
+        signer_workflow: str | None = None,
+        deny_self_hosted_runners: bool = True,
+    ) -> tuple[AttestationVerificationReceipt, ...]:
+        artifact_path = artifact_path.strip()
+        if (
+            not artifact_path
+            or artifact_path.startswith("-")
+            or "\x00" in artifact_path
+        ):
+            raise ValueError(
+                "artifact_path must be a non-option local file path"
+            )
+        self._validate_common(
+            sha256_digest=sha256_digest,
+            repository_id=repository_id,
+            source_revision=source_revision,
+        )
+        return self._verify_reference(
+            artifact_ref=artifact_path,
+            sha256_digest=sha256_digest,
+            repository_id=repository_id,
+            source_revision=source_revision,
+            signer_workflow=signer_workflow,
+            deny_self_hosted_runners=deny_self_hosted_runners,
+            bundle_from_oci=False,
+        )
+
+    @staticmethod
+    def _validate_common(
+        *,
+        sha256_digest: str,
+        repository_id: str,
+        source_revision: str,
+    ) -> None:
         if not _SHA256.fullmatch(sha256_digest):
             raise ValueError("sha256_digest must be 64 hex characters")
         if not _REPOSITORY_ID.fullmatch(repository_id):
             raise ValueError("invalid GitHub repository_id")
         if not _GIT_REVISION.fullmatch(source_revision):
-            raise ValueError("source_revision must be a full 40/64 hex revision")
+            raise ValueError(
+                "source_revision must be a full 40/64 hex revision"
+            )
 
+    def _verify_reference(
+        self,
+        *,
+        artifact_ref: str,
+        sha256_digest: str,
+        repository_id: str,
+        source_revision: str,
+        signer_workflow: str | None,
+        deny_self_hosted_runners: bool,
+        bundle_from_oci: bool,
+    ) -> tuple[AttestationVerificationReceipt, ...]:
         digest = sha256_digest.lower()
         source_revision = source_revision.lower()
-        artifact_ref = f"oci://{artifact_name}@sha256:{digest}"
         args = [
             self.gh_executable,
             "attestation",
@@ -130,6 +205,10 @@ class GitHubCLIAttestationVerifier:
             raise AttestationVerificationError(
                 "GitHub attestation verification timed out"
             ) from exc
+        except OSError as exc:
+            raise AttestationVerificationError(
+                f"GitHub attestation verifier could not execute: {exc}"
+            ) from exc
 
         if completed.returncode != 0:
             detail = (completed.stderr or completed.stdout or "").strip()
@@ -160,6 +239,25 @@ class GitHubCLIAttestationVerifier:
                 continue
             statement = verification.get("statement")
             if not isinstance(statement, dict):
+                continue
+
+            subjects = statement.get("subject", [])
+            digest_matches = False
+            if isinstance(subjects, list):
+                for subject in subjects:
+                    if not isinstance(subject, dict):
+                        continue
+                    digest_map = subject.get("digest")
+                    if not isinstance(digest_map, dict):
+                        continue
+                    candidate = digest_map.get("sha256")
+                    if (
+                        isinstance(candidate, str)
+                        and candidate.lower() == digest
+                    ):
+                        digest_matches = True
+                        break
+            if not digest_matches:
                 continue
 
             timestamps: list[str] = []
@@ -194,6 +292,7 @@ class GitHubCLIAttestationVerifier:
 
         if not receipts:
             raise AttestationVerificationError(
-                "verified output contained no usable SLSA statements"
+                "verified output contained no usable SLSA statements "
+                "matching the expected artifact/source constraints"
             )
         return tuple(receipts)
