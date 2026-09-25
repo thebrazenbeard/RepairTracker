@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "repairtracker"
+version = "0.1.0"
+description = "Evidence-governed repair operating system for unfamiliar portfolios"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "RepairTracker contributors"}]
+dependencies = []
+
+[project.scripts]
+repairtracker = "repairtracker.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

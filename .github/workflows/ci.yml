@@ -1,0 +1,69 @@
+name: repairtracker-ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: python -m pip install -e .
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Discovery smoke
+        run: repairtracker discover . > repairtracker-system-model.json
+      - name: Portfolio bootstrap smoke
+        run: repairtracker portfolio-local . --portfolio-id self > repairtracker-portfolio.json
+      - name: Hostile-review smoke
+        run: repairtracker hostile-template "the repair is complete" --success "exact-subject verification passes"
+
+  github-read-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: python -m pip install -e .
+      - name: Live read-only GitHub portfolio bootstrap
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: repairtracker portfolio-github ${{ github.repository }} --portfolio-id self-github > repairtracker-github-portfolio.json
+      - name: Live read-only GitHub repair-signal ingestion
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: repairtracker github-signals ${{ github.repository }} --max-items-per-kind 50 > repairtracker-github-signals.json
+      - name: Live exact GitHub revision resolution
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import os
+          from repairtracker.adapters.github import GitHubReadClient
+
+          result = GitHubReadClient(token=os.environ["GITHUB_TOKEN"]).resolve_revision(
+              os.environ["GITHUB_REPOSITORY"],
+              os.environ["GITHUB_SHA"],
+          )
+          assert result.resolved_revision == os.environ["GITHUB_SHA"].lower()
+      - name: Live read-only GitHub attestation index
+        run: repairtracker github-attestations ${{ github.repository }} sha256:0000000000000000000000000000000000000000000000000000000000000000 --max-results 1 --token-env REPAIRTRACKER_NO_TOKEN > repairtracker-github-attestations.json
+      - name: GitHub CLI attestation trust-root capability
+        run: gh attestation trusted-root --verify-only
