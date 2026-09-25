@@ -11,6 +11,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+from repairtracker.deployment import ObservedArtifactDeploymentRecord
 from repairtracker.model import canonical_digest
 from repairtracker.runtime_binding import RevisionResolution
 from repairtracker.portfolio import (
@@ -47,6 +48,7 @@ class GitHubRepairSignal:
     observed_at: str
     subject_ref: str | None
     payload_digest: str
+    repository_stable_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,11 +101,15 @@ class UrllibGitHubReadTransport:
             path.startswith("/repos/")
             or re.fullmatch(r"/users/[A-Za-z0-9_.-]+/repos", path)
             or re.fullmatch(r"/orgs/[A-Za-z0-9_.-]+/repos", path)
+            or re.fullmatch(
+                r"/orgs/[A-Za-z0-9_.-]+/artifacts/sha256:[0-9a-fA-F]{64}/metadata/deployment-records",
+                path,
+            )
             or path == "/user/repos"
         )
         if not allowed:
             raise ValueError(
-                "GitHub read transport only permits repository-read endpoints"
+                "GitHub read transport only permits configured read-only endpoints"
             )
         url = f"{self._base_url}{path}"
         if query:
@@ -355,8 +361,18 @@ class GitHubReadClient:
         if not _FULL_NAME.fullmatch(full_name):
             raise ValueError(f"invalid GitHub repository name: {full_name!r}")
         encoded = "/".join(quote(part, safe="") for part in full_name.split("/"))
+        repository_payload = self.transport.get_json(f"/repos/{encoded}")
+        stable_repository_id = repository_payload.get("id")
+        if not isinstance(stable_repository_id, int):
+            stable_repository_id = None
+
         observed_at = datetime.now(timezone.utc).isoformat()
         warnings: list[str] = []
+        if stable_repository_id is None:
+            warnings.append(
+                "GitHub repository numeric ID unavailable; signal identity "
+                "will fall back to rename-sensitive repository name"
+            )
         signals: list[GitHubRepairSignal] = []
 
         issues, issue_limited = self._list_bounded(
@@ -391,12 +407,15 @@ class GitHubReadClient:
                     subject_ref=None,
                     payload_digest=canonical_digest(
                         {
+                            "repository_id": full_name,
+                            "repository_stable_id": stable_repository_id,
                             "number": number,
                             "title": title,
                             "state": item.get("state"),
                             "updated_at": item.get("updated_at"),
                         }
                     ),
+                    repository_stable_id=stable_repository_id,
                 )
             )
 
@@ -432,6 +451,8 @@ class GitHubReadClient:
                     subject_ref=head_sha if isinstance(head_sha, str) else None,
                     payload_digest=canonical_digest(
                         {
+                            "repository_id": full_name,
+                            "repository_stable_id": stable_repository_id,
                             "number": number,
                             "title": title,
                             "state": item.get("state"),
@@ -439,6 +460,7 @@ class GitHubReadClient:
                             "updated_at": item.get("updated_at"),
                         }
                     ),
+                    repository_stable_id=stable_repository_id,
                 )
             )
 
@@ -503,6 +525,8 @@ class GitHubReadClient:
                     subject_ref=head_sha if isinstance(head_sha, str) else None,
                     payload_digest=canonical_digest(
                         {
+                            "repository_id": full_name,
+                            "repository_stable_id": stable_repository_id,
                             "id": run_id,
                             "name": name,
                             "conclusion": conclusion,
@@ -511,6 +535,7 @@ class GitHubReadClient:
                             "updated_at": item.get("updated_at"),
                         }
                     ),
+                    repository_stable_id=stable_repository_id,
                 )
             )
 
@@ -631,6 +656,101 @@ class GitHubReadClient:
             references=tuple(references),
             warnings=tuple(warnings),
         )
+
+    def observe_artifact_deployments(
+        self,
+        organization: str,
+        artifact_digest: str,
+    ) -> tuple[ObservedArtifactDeploymentRecord, ...]:
+        """Read GitHub artifact-metadata deployment records for one exact digest."""
+
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", organization):
+            raise ValueError(f"invalid GitHub organization: {organization!r}")
+        digest = artifact_digest.strip().lower()
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+            raise ValueError("artifact_digest must be sha256:HEX")
+
+        path = (
+            f"/orgs/{quote(organization, safe='')}/artifacts/"
+            f"{quote(digest, safe=':')}/metadata/deployment-records"
+        )
+        payload = self.transport.get_json(path)
+        if not isinstance(payload, dict):
+            raise GitHubReadError(
+                f"invalid artifact deployment response for {organization}/{digest}"
+            )
+        records = payload.get("deployment_records", [])
+        if not isinstance(records, list):
+            raise GitHubReadError(
+                f"invalid artifact deployment records for {organization}/{digest}"
+            )
+
+        observed_at = datetime.now(timezone.utc).isoformat()
+        result: list[ObservedArtifactDeploymentRecord] = []
+        for item in records:
+            if not isinstance(item, dict):
+                continue
+            returned_digest = item.get("digest")
+            if not isinstance(returned_digest, str):
+                continue
+            if returned_digest.lower() != digest:
+                raise GitHubReadError(
+                    "artifact deployment record digest does not match request"
+                )
+            record_id = item.get("id")
+            if record_id is None:
+                continue
+
+            attestation_id = item.get("attestation_id")
+            result.append(
+                ObservedArtifactDeploymentRecord(
+                    source_system="github-artifact-metadata",
+                    record_id=str(record_id),
+                    artifact_digest=digest,
+                    logical_environment=(
+                        str(item["logical_environment"])
+                        if item.get("logical_environment") is not None
+                        else None
+                    ),
+                    physical_environment=(
+                        str(item["physical_environment"])
+                        if item.get("physical_environment") is not None
+                        else None
+                    ),
+                    cluster=(
+                        str(item["cluster"])
+                        if item.get("cluster") is not None
+                        else None
+                    ),
+                    deployment_name=(
+                        str(item["deployment_name"])
+                        if item.get("deployment_name") is not None
+                        else None
+                    ),
+                    attestation_id=(
+                        str(attestation_id)
+                        if attestation_id is not None
+                        else None
+                    ),
+                    created_at=(
+                        str(item["created"])
+                        if item.get("created") is not None
+                        else None
+                    ),
+                    updated_at=(
+                        str(item["updated_at"])
+                        if item.get("updated_at") is not None
+                        else None
+                    ),
+                    locator=(
+                        f"https://github.com/orgs/{organization}/artifacts/"
+                        f"{digest}#deployment-record-{record_id}"
+                    ),
+                    observed_at=observed_at,
+                    payload_digest=canonical_digest(item),
+                )
+            )
+        return tuple(result)
 
     def _repository_default_branch(self, encoded: str, full_name: str) -> str:
         repo = self.transport.get_json(f"/repos/{encoded}")

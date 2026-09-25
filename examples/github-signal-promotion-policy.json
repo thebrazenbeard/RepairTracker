@@ -1,0 +1,12 @@
+{
+  "policy_id": "example-workflow-failures",
+  "rules": [
+    {
+      "rule_id": "failed-workflow-exact-head",
+      "kinds": ["WORKFLOW_RUN"],
+      "states": ["failure", "timed_out", "startup_failure"],
+      "severity": "SEV-2",
+      "require_subject_ref": true
+    }
+  ]
+}
