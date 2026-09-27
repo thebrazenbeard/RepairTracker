@@ -14,9 +14,9 @@ RepairTracker must remain useful when none of Patrick's other systems exist. Int
 
 ## Status
 
-RepairTracker is currently in early V0 construction.
+`main` now contains an executable V0 implementation spine, not only the target architecture. The source package includes repair-case/event models, append-only storage, portfolio discovery and topology modeling, native hostile review, capability-provider contracts, GitHub/attestation adapters, artifact/deployment evidence structures, promotion logic, telemetry, CLI surfaces, and deterministic tests.
 
-The architecture below is the target contract. Source presence, test success, integration, installation, runtime effect, and repair qualification are separate states; this README does not claim capabilities that have not yet been implemented and verified.
+On 2026-09-27, the canonical executable tree was independently exercised on Lappy with CPython 3.12.10 after editable installation: **84/84 tests passed**. That is repository/source verification only. Source presence, test success, integration, installation, runtime effect, and repair qualification remain separate states.
 
 ## Core principles
 
