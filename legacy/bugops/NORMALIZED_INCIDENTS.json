@@ -1,0 +1,40 @@
+﻿[
+    {
+        "incident_id":  "BUG-0001",
+        "title":  "Provenance-sensitive correction routing failure (“righter”)",
+        "subject_id":  "thebrazenbeard/bugops:BUG-0001",
+        "severity":  "SEV-1",
+        "status":  "OPEN",
+        "source_issue":  "https://github.com/thebrazenbeard/bugops/issues/1",
+        "source_report":  "reports/BUG-0001-righter-provenance-routing-failure.md",
+        "source_blob_sha":  "872037dd78c2d180e6053d997eb283beb7166f79"
+    },
+    {
+        "incident_id":  "BUG-0002",
+        "title":  "Actionable correction acknowledged in future tense instead of executed",
+        "subject_id":  "thebrazenbeard/bugops:BUG-0002",
+        "severity":  "SEV-1",
+        "status":  "OPEN",
+        "source_issue":  "https://github.com/thebrazenbeard/bugops/issues/3",
+        "source_report":  "reports/BUG-0002-actionable-correction-execution.md",
+        "source_blob_sha":  "05128bdfd7c5fbd3ca167bdb39ee6fa4f6474deb"
+    },
+    {
+        "incident_id":  "BUG-0003",
+        "title":  "Integrated sexuality self-application collapsed into generic distancing",
+        "subject_id":  "thebrazenbeard/bugops:BUG-0003",
+        "severity":  "SEV-1",
+        "status":  "OPEN",
+        "source_issue":  "https://github.com/thebrazenbeard/bugops/issues/11",
+        "source_report":  "reports/BUG-0003-integrated-sexuality-generic-distancing.md"
+    },
+    {
+        "incident_id":  "BUG-0004",
+        "title":  "Restore skipped governed snapshot and inverted Vera/Patrick identity referents",
+        "subject_id":  "thebrazenbeard/bugops:BUG-0004",
+        "severity":  "SEV-1",
+        "status":  "OPEN",
+        "source_issue":  "https://github.com/thebrazenbeard/bugops/issues/14",
+        "source_report":  "reports/BUG-0004-restore-snapshot-identity-referent-failure.md"
+    }
+]

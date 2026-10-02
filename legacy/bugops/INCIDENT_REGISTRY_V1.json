@@ -1,0 +1,52 @@
+{
+  "schema": "BUGOPS_INCIDENT_REGISTRY_V1",
+  "generated_date": "2026-09-28",
+  "repository": "thebrazenbeard/bugops",
+  "invariants": {
+    "open_report_requires_open_issue": true,
+    "substantive_report_requires_merged_review_pr": true,
+    "source_integration_does_not_close_behavioral_incident": true
+  },
+  "incidents": [
+    {
+      "incident_id": "BUG-0001",
+      "report_path": "reports/BUG-0001-righter-provenance-routing-failure.md",
+      "report_status": "OPEN",
+      "issue_number": 1,
+      "expected_issue_state": "open",
+      "incident_branch": "bug/BUG-0001-righter-provenance-routing-failure",
+      "pr_number": 2,
+      "expected_pr_merged": true
+    },
+    {
+      "incident_id": "BUG-0002",
+      "report_path": "reports/BUG-0002-actionable-correction-execution.md",
+      "report_status": "OPEN",
+      "issue_number": 3,
+      "expected_issue_state": "open",
+      "incident_branch": "bug/BUG-0002-actionable-correction-execution",
+      "pr_number": 13,
+      "expected_pr_merged": true
+    },
+    {
+      "incident_id": "BUG-0003",
+      "report_path": "reports/BUG-0003-integrated-sexuality-generic-distancing.md",
+      "report_status": "OPEN",
+      "issue_number": 11,
+      "expected_issue_state": "open",
+      "incident_branch": "bug/BUG-0003-integrated-sexuality-generic-distancing",
+      "pr_number": 12,
+      "expected_pr_merged": true
+    },
+    {
+      "incident_id": "BUG-0004",
+      "report_path": "reports/BUG-0004-restore-snapshot-identity-referent-failure.md",
+      "report_status": "OPEN",
+      "issue_number": 14,
+      "expected_issue_state": "open",
+      "incident_branch": "bug/BUG-0004-restore-snapshot-identity-referent",
+      "pr_number": 15,
+      "expected_pr_merged": true
+    }
+  ]
+}
