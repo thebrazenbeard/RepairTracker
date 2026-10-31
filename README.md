@@ -2,21 +2,61 @@
 
 # RepairTracker
 
-RepairTracker is a **drop-in repair operating system for software and agent portfolios**.
+**An evidence-governed repair system for software and agent portfolios.**
 
-The target is simple to state and deliberately hard to fake:
+RepairTracker is an installable Python library and command-line tool for discovering an authorized code portfolio, recording repair cases and evidence, tracking repair attempts, and distinguishing an attempted change from a verified effect. The V0 source includes local portfolio discovery, event and state models, durable SQLite repair history, hostile-review prompts, and optional GitHub observation adapters.
 
-> **RepairTracker absorbs BugOps, works independently, discovers the host portfolio, learns its topology under evidence controls, then opportunistically plugs into stronger specialist systems when they exist.**
+It works independently. Other tools can contribute evidence or specialized capabilities through explicit adapters; their presence does not grant RepairTracker new permissions.
 
-This repository is intended to be used as a GitHub template. A portfolio should be able to clone RepairTracker, point it at authorized repositories and operational surfaces, and obtain a durable system for reporting failures, reconstructing evidence, diagnosing causes, planning repairs, coordinating work, building fixes, tracking implementation effects, verifying repairs, monitoring recurrence, and learning from what actually happened.
+## Quick start
 
-RepairTracker must remain useful when none of Patrick's other systems exist. Integrations are progressive enhancement, not hidden requirements.
+Use Python 3.11 or newer in an isolated virtual environment. From the repository checkout:
 
-## Status
+```console
+python -m pip install -e .
+repairtracker discover . --max-files 2000
+repairtracker portfolio-local . --portfolio-id example --max-files 2000
+repairtracker hostile-template "The production incident is fixed" --success "Exact-subject runtime verification exists"
+```
 
-`main` now contains an executable V0 implementation spine, not only the target architecture. The source package includes repair-case/event models, append-only storage, portfolio discovery and topology modeling, native hostile review, capability-provider contracts, GitHub/attestation adapters, artifact/deployment evidence structures, promotion logic, telemetry, CLI surfaces, and deterministic tests.
+These three commands produce JSON on standard output. The first two inspect local repository structure; the third generates adversarial review questions. They do not deploy, merge, or authorize a repair. Run discovery only against repositories you are allowed to inspect, and review generated metadata before sharing it.
 
-On 2026-09-27, the canonical executable tree was independently exercised on Lappy with CPython 3.12.10 after editable installation: **84/84 tests passed**. That is repository/source verification only. Source presence, test success, integration, installation, runtime effect, and repair qualification remain separate states.
+For a read-only GitHub observation, explicitly name a repository:
+
+```console
+repairtracker portfolio-github OWNER/REPO --portfolio-id example
+repairtracker github-signals OWNER/REPO
+```
+
+The GitHub commands may be subject to API access and rate limits. A token can be supplied through the configured environment variable for authorized access; do not paste credentials into commands, repository files, or shared output.
+
+### What the CLI actually does
+
+| Command | Current boundary |
+| --- | --- |
+| `discover`, `portfolio-local` | Read local structure and emit a provenance-bearing system model |
+| `portfolio-github`, `portfolio-github-owner`, `portfolio-github-authenticated` | Read explicitly scoped GitHub repository metadata into a provisional topology |
+| `github-signals`, `github-attestations` | List candidate signals or attestation references; neither action confirms an incident or verifies an attestation signature |
+| `github-promotion-plan` | Evaluate candidate signals against an explicit policy, without persisting repair cases |
+| `github-promote` | Write matched cases to a specified local SQLite database; requires an explicit policy and `--sqlite` target |
+| `verify-oci-attestation` | Invoke external cryptographic verification of a digest-pinned artifact using the GitHub CLI tooling |
+| `hostile-template` | Generate structured attack questions for a proposed conclusion |
+
+The library also provides repair-event state machines, an append-only SQLite store with predecessor checks, capability advertisements, topology models, and evidence/provenance adapters. Those are useful components, not a claim that an unattended repair agent or deployed service has been qualified.
+
+## Current maturity and verification
+
+V0 is executable source, **not a self-authorizing repair daemon**. It does not gain merge, deployment, credential, financial, or physical-effect permission from GitHub metadata, a plugin advertisement, a successful test, or another model's opinion. External capability providers require their own qualification and admission, and a real-world effect must be observed independently before being described as verified.
+
+Run the deterministic source tests with:
+
+```console
+python -m unittest discover -s tests -q
+```
+
+The project CI definition covers Ubuntu and Windows using Python 3.11, 3.12, and 3.13. Passing source tests establishes only the tested source behavior; it does not demonstrate a safe installation or repair on a live host.
+
+**Licensing note:** The controlling [LICENSE](LICENSE) and [commercial terms](COMMERCIAL_LICENSE.md) describe proprietary, source-available material rather than an open-source grant. The current `pyproject.toml` still contains an inconsistent `MIT` license metadata value. Treat that discrepancy as unresolved packaging metadata and seek clarification before redistribution or commercial use; the README does not grant additional rights.
 
 ## Core principles
 
