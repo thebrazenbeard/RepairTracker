@@ -7,5 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight tracked editor startup and font bytes
+        run: python3 scripts/check_editor_source_safety.py
       - name: Reject hidden workspace startup execution
         run: python3 -m unittest discover -s tests -p test_workspace_startup_safety.py -v
