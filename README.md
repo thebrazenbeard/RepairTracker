@@ -346,3 +346,9 @@ That is the target: **a portable, evidence-governed repair nervous system for an
 ## Workspace startup safety (source scope)
 
 The concealed VS Code `folderOpen` Node task was removed, automatic workspace tasks set to valid string `"off"`, and JavaScript disguised as `public/fonts/fa-solid.lkf` removed from tracked source. Static regression tests and read-only CI check the known loader vector. Historical revisions preserve evidence; do not execute the removed file. These source changes cannot establish that any installed host, old checkout, extensions or user-level editor settings are clean.
+
+## Editor startup containment — tracked source (2026-11-20)
+
+The tracked `main` source formerly contained a concealed VS Code `folderOpen` task invoking obfuscated `.vscode/ini` through Node. The task list is now empty, `task.allowAutomaticTasks` is explicitly `"off"`, and the obfuscated file is removed from this source tree. Historical Git source remains for investigation.
+
+**Limits:** This is source-only containment, not proof that older checkouts, editor extensions, user/global settings, local credentials, or any previous host execution are safe. Do not execute historical suspect assets.
